@@ -20,6 +20,17 @@ apisprout my-api.yaml
 apisprout https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/examples/v3.0/api-with-examples.yaml
 ```
 
+## Docker Image
+
+A hosted [apisprout](https://hub.docker.com/r/danielgtaylor/apisprout/) Docker image is provided that makes it easy to deploy mocks servers or run locally. For example:
+
+```sh
+docker pull danielgtaylor/apisprout
+docker run -p 8000:8000 apisprout http://example.com/my-api.yaml
+```
+
+Configuration can be passed via environment variables, e.g. setting `SPROUT_VALIDATE_REQUEST=1`, or by passing commandline flags.
+
 ## Installation
 
 Download the appropriate binary from the [releases](https://github.com/danielgtaylor/apisprout/releases) page.
