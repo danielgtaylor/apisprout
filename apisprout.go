@@ -145,7 +145,7 @@ func getTypedExample(mt *openapi3.MediaType) (interface{}, error) {
 		}
 
 		selected := keys[rand.Intn(len(keys))]
-		return mt.Examples[selected].Value, nil
+		return mt.Examples[selected].Value.Value, nil
 	}
 
 	// TODO: generate data from JSON schema, if available?
