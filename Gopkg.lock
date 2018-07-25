@@ -16,13 +16,28 @@
     "openapi3filter",
     "pathpattern"
   ]
-  revision = "60e95f1b88c48a8c98824f41ea5cc3c8f2d54e82"
+  revision = "4d32f1d41bec8d922505f20e07bc624dbd59db6a"
 
 [[projects]]
   name = "github.com/ghodss/yaml"
   packages = ["."]
   revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
   version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/gobwas/glob"
+  packages = [
+    ".",
+    "compiler",
+    "match",
+    "syntax",
+    "syntax/ast",
+    "syntax/lexer",
+    "util/runes",
+    "util/strings"
+  ]
+  revision = "5ccd90ef52e1e632236f7326478d4faa74f99438"
+  version = "v0.2.3"
 
 [[projects]]
   branch = "master"
@@ -108,7 +123,7 @@
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "ac767d655b305d4e9612f5f6e33120b9176c4ad4"
+  revision = "e072cadbbdc8dd3d3ffa82b8b4b9304c261d9311"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -132,6 +147,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1c6c6bd1f05cfc68d7c065c8e8228fa034a2a2ed300fbff79e2f8c204e3526a9"
+  inputs-digest = "5f938e4d95214f993067d19f8035458a27bff8dcb49a96279db1c38c016517e8"
   solver-name = "gps-cdcl"
   solver-version = 1
