@@ -5,10 +5,15 @@ A simple, quick, cross-platform API mock server that returns examples specified 
 - OpenAPI 3.x support
 - Load from a URL or local file
 - Accept header content negotiation
+  - Example: `Accept: application/*`
 - Prefer header to select response to test specific cases
+  - Example: `Prefer: status=409`
 - Server name validation (enabled with `--validate-server`)
 - Request parameter & body validation (enabled with `--validate-request`)
-- Configuration via files, environment, or commandline flags
+- Configuration via:
+  - Files (`/etc/apisprout/config.json|yaml`)
+  - Environment (prefixed with `SPROUT_`, e.g. `SPROUT_VALIDATE_SERVER`)
+  - Commandline flags
 
 Usage is simple:
 
@@ -22,14 +27,18 @@ apisprout https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/exa
 
 ## Docker Image
 
-A hosted [apisprout](https://hub.docker.com/r/danielgtaylor/apisprout/) Docker image is provided that makes it easy to deploy mocks servers or run locally. For example:
+A hosted [API Sprout Docker image](https://hub.docker.com/r/danielgtaylor/apisprout/) is provided that makes it easy to deploy mock servers or run locally. For example:
 
 ```sh
 docker pull danielgtaylor/apisprout
-docker run -p 8000:8000 apisprout http://example.com/my-api.yaml
+docker run -p 8000:8000 danielgtaylor/apisprout http://example.com/my-api.yaml
 ```
 
-Configuration can be passed via environment variables, e.g. setting `SPROUT_VALIDATE_REQUEST=1`, or by passing commandline flags.
+Configuration can be passed via environment variables, e.g. setting `SPROUT_VALIDATE_REQUEST=1`, or by passing commandline flags. It is also possible to use a local API description file via [Docker Volumes](https://docs.docker.com/storage/volumes/):
+
+```
+docker run -p 8000:8000 -v localfile.yaml:/api.yaml danielgtaylor/apisprout /api.yaml
+```
 
 ## Installation
 
