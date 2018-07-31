@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ .Values.appname }}"
+{{- with .Values.service.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: "{{ .Values.appname }}"
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+  

@@ -1,0 +1,25 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: "{{ .Values.appname }}"
+  labels:
+    app: "{{ .Values.appname }}"
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: "{{ .Values.appname }}"
+  template:
+    metadata:
+      labels:
+        app: "{{ .Values.appname }}"
+    spec:
+      containers:
+      - name: "{{ .Values.appname }}"
+        image: danielgtaylor/apisprout
+        args: [ "{{required "The value .Values.apiyamlpath required!" .Values.apiyamlpath }}" ]
+        ports:
+          - name: http
+            containerPort: {{ .Values.deployment.containerPort }}

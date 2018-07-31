@@ -1,0 +1,11 @@
+# Default values
+appname: apisprout
+replicas: 1
+
+deployment:
+  containerPort: 8000
+
+service:
+  type: LoadBalancer
+  port: 8000
+
