@@ -7,5 +7,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 - Documentation updates.
 
+## [1.0.1] - 2018-10-03
+- Dependency updates, fixes string format validation bug.
+
 ## [1.0.0] - 2018-07-24
 - Initial release.
