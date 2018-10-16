@@ -25,6 +25,9 @@ apisprout my-api.yaml
 apisprout https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/examples/v3.0/api-with-examples.yaml
 ```
 
+# Enable CORS on all requests from all origins, a handy feature for testing/development environment
+apisprout -c my-api.yaml
+
 ## Docker Image
 
 A hosted [API Sprout Docker image](https://hub.docker.com/r/danielgtaylor/apisprout/) is provided that makes it easy to deploy mock servers or run locally. For example:
