@@ -361,7 +361,7 @@ func server(cmd *cobra.Command, args []string) {
 
 	fmt.Printf("🌱 Sprouting %s on port %d\n", swagger.Info.Title, viper.GetInt("port"))
 	if (viper.GetBool("enableCors")) {
-		fmt.Printf("🌱 - CORS enabled on all requests from all origins")
+		fmt.Printf("🌱 - CORS enabled on all requests from all origins\n")
 	}
 	http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil)
 }
