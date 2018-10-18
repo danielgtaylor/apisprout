@@ -258,14 +258,6 @@ func server(cmd *cobra.Command, args []string) {
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		info := fmt.Sprintf("%s %v", req.Method, req.URL)
-		route, _, err := router.FindRoute(req.Method, req.URL)
-		if err != nil {
-			log.Printf("ERROR: %s => %v", info, err)
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-
 		//Enable CORS
 		if viper.GetBool("enableCors") {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -276,6 +268,14 @@ func server(cmd *cobra.Command, args []string) {
 			if (*req).Method == "OPTIONS" {
 				return
 			}
+		}
+
+		info := fmt.Sprintf("%s %v", req.Method, req.URL)
+		route, _, err := router.FindRoute(req.Method, req.URL)
+		if err != nil {
+			log.Printf("ERROR: %s => %v", info, err)
+			w.WriteHeader(http.StatusNotFound)
+			return
 		}
 
 		if viper.GetBool("validate-request") {
