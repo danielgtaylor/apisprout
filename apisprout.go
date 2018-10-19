@@ -107,6 +107,7 @@ func main() {
 	flags := root.PersistentFlags()
 
 	addParameter(flags, "port", "p", 8000, "HTTP port")
+	addParameter(flags, "reparse-on-request", "", false, "re-fetch and re-parse the spec file on every request")
 	addParameter(flags, "validate-server", "", false, "Check hostname against configured servers")
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
 
@@ -206,11 +207,7 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 	return 0, "", nil, ErrNoExample
 }
 
-// server loads an OpenAPI file and runs a mock server using the paths and
-// examples defined in the file.
-func server(cmd *cobra.Command, args []string) {
-	uri := args[0]
-
+func swaggerRouter(uri string) (*openapi3.Swagger, *openapi3filter.Router) {
 	var err error
 	var data []byte
 
@@ -237,7 +234,7 @@ func server(cmd *cobra.Command, args []string) {
 	// Load the OpenAPI document.
 	loader := openapi3.NewSwaggerLoader()
 	var swagger *openapi3.Swagger
-	if strings.HasSuffix(args[0], ".yaml") || strings.HasSuffix(args[0], ".yml") {
+	if strings.HasSuffix(uri, ".yaml") || strings.HasSuffix(uri, ".yml") {
 		swagger, err = loader.LoadSwaggerFromYAMLData(data)
 	} else {
 		swagger, err = loader.LoadSwaggerFromData(data)
@@ -253,11 +250,23 @@ func server(cmd *cobra.Command, args []string) {
 	}
 
 	// Create a new router using the OpenAPI document's declared paths.
-	var router = openapi3filter.NewRouter().WithSwagger(swagger)
+	return swagger, openapi3filter.NewRouter().WithSwagger(swagger)
+}
+
+// server loads an OpenAPI file and runs a mock server using the paths and
+// examples defined in the file.
+func server(cmd *cobra.Command, args []string) {
+	uri := args[0]
+
+	// Create a new router using the OpenAPI document's declared paths.
+	var swagger, router = swaggerRouter(uri)
 
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		if viper.GetBool("reparse-on-request") {
+			swagger, router = swaggerRouter(uri)
+		}
 		info := fmt.Sprintf("%s %v", req.Method, req.URL)
 		route, _, err := router.FindRoute(req.Method, req.URL)
 		if err != nil {
