@@ -162,6 +162,9 @@ func getTypedExampleFromSchema(schema *openapi3.Schema) (interface{}, error) {
 		return schema.Example, nil
 	}
 
+	if schema.Type == "integer" {
+		return 0, nil
+	}
 	if schema.Type == "boolean" {
 		return true, nil
 	}
