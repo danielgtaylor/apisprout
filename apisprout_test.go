@@ -8,6 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type getTypedExampleTestData struct {
+	name                string
+	generateInputSchema func() *openapi3.Schema
+	validateResult      func(*testing.T, string)
+}
+
 func Test_GetTypedExampleShouldGetFromExampleField(t *testing.T) {
 	exampleData := map[string]string{"name1": "value1", "name2": "value2"}
 
@@ -23,96 +29,94 @@ func Test_GetTypedExampleShouldGetFromExampleField(t *testing.T) {
 	assert.Equal(t, `{"name1":"value1","name2":"value2"}`, string(selectedExampleJSON))
 }
 
-func Test_GetTypedExampleShouldGetFromSchemaExampleField(t *testing.T) {
-	exampleData := map[string]string{"name1": "value1", "name2": "value2"}
+var getTypedExampleTestDataEntries = []getTypedExampleTestData{
+	getTypedExampleTestData{
+		name: "SchemaExampleField",
+		generateInputSchema: func() *openapi3.Schema {
+			exampleData := map[string]string{"name1": "value1", "name2": "value2"}
+			schema := openapi3.NewSchema()
+			schema.Example = exampleData
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `{"name1":"value1","name2":"value2"}`, s)
+		},
+	},
+	getTypedExampleTestData{
+		name: "SchemaPropertiesExampleField",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewSchema()
 
-	schema := openapi3.NewSchema()
-	schema.Example = exampleData
+			parameterSchema1 := openapi3.NewStringSchema()
+			parameterSchema1.Example = "testvalue"
 
-	mediaType := openapi3.NewMediaType()
-	mediaType.WithSchema(schema)
+			parameterSchema2 := openapi3.NewObjectSchema()
+			nestedParameterSchema := openapi3.NewBoolSchema()
+			nestedParameterSchema.Example = true
+			parameterSchema2.WithProperty("nestedProperty", nestedParameterSchema)
 
-	selectedExample, err := getTypedExample(mediaType)
-	assert.Nil(t, err)
+			schema.WithProperties(map[string]*openapi3.Schema{
+				"name1": parameterSchema1,
+				"name2": parameterSchema2,
+			})
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `{"name1":"testvalue","name2":{"nestedProperty":true}}`, s)
+		},
+	},
+	getTypedExampleTestData{
+		name: "SchemaArrayItemsStringExampleField",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewArraySchema()
+			itemSchema := openapi3.NewStringSchema()
+			itemSchema.Example = "testvalue"
+			schema.WithItems(itemSchema)
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `["testvalue"]`, s)
+		},
+	},
+	getTypedExampleTestData{
+		name: "SchemaArrayItemsObjectExampleField",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewArraySchema()
 
-	selectedExampleJSON, err := json.Marshal(selectedExample)
-	assert.Nil(t, err)
-	assert.NotEmpty(t, string(selectedExampleJSON))
-	assert.Equal(t, `{"name1":"value1","name2":"value2"}`, string(selectedExampleJSON))
+			itemSchema := openapi3.NewObjectSchema()
+
+			parameterSchema1 := openapi3.NewStringSchema()
+			parameterSchema1.Example = "testvalue"
+
+			itemSchema.WithProperties(map[string]*openapi3.Schema{
+				"name1": parameterSchema1,
+			})
+
+			schema.WithItems(itemSchema)
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `[{"name1":"testvalue"}]`, s)
+		},
+	},
 }
 
-func Test_GetTypedExampleShouldGetFromSchemaPropertiesExampleField(t *testing.T) {
-	schema := openapi3.NewSchema()
+func Test_GetTypedExampleTest(t *testing.T) {
 
-	parameterSchema1 := openapi3.NewStringSchema()
-	parameterSchema1.Example = "testvalue"
+	for _, td := range getTypedExampleTestDataEntries {
+		t.Logf("testcase: '%s'", td.name)
 
-	parameterSchema2 := openapi3.NewObjectSchema()
-	nestedParameterSchema := openapi3.NewBoolSchema()
-	nestedParameterSchema.Example = true
-	parameterSchema2.WithProperty("nestedProperty", nestedParameterSchema)
+		mediaType := openapi3.NewMediaType()
+		mediaType.WithSchema(td.generateInputSchema())
 
-	schema.WithProperties(map[string]*openapi3.Schema{
-		"name1": parameterSchema1,
-		"name2": parameterSchema2,
-	})
+		selectedExample, err := getTypedExample(mediaType)
+		assert.Nil(t, err)
 
-	mediaType := openapi3.NewMediaType()
-	mediaType.WithSchema(schema)
-
-	selectedExample, err := getTypedExample(mediaType)
-	assert.Nil(t, err)
-
-	selectedExampleJSON, err := json.Marshal(selectedExample)
-	assert.Nil(t, err)
-	assert.NotEmpty(t, string(selectedExampleJSON))
-	assert.Equal(t, `{"name1":"testvalue","name2":{"nestedProperty":true}}`, string(selectedExampleJSON))
-}
-
-func Test_GetTypedExampleShouldGetFromSchemaArrayItemsStringExampleField(t *testing.T) {
-	schema := openapi3.NewArraySchema()
-
-	itemSchema := openapi3.NewStringSchema()
-	itemSchema.Example = "testvalue"
-
-	schema.WithItems(itemSchema)
-
-	mediaType := openapi3.NewMediaType()
-	mediaType.WithSchema(schema)
-
-	selectedExample, err := getTypedExample(mediaType)
-	assert.Nil(t, err)
-
-	selectedExampleJSON, err := json.Marshal(selectedExample)
-	assert.Nil(t, err)
-	assert.NotEmpty(t, string(selectedExampleJSON))
-	assert.Equal(t, `["testvalue"]`, string(selectedExampleJSON))
-}
-
-func Test_GetTypedExampleShouldGetFromSchemaArrayItemsObjectExampleField(t *testing.T) {
-	schema := openapi3.NewArraySchema()
-
-	itemSchema := openapi3.NewObjectSchema()
-
-	parameterSchema1 := openapi3.NewStringSchema()
-	parameterSchema1.Example = "testvalue"
-
-	itemSchema.WithProperties(map[string]*openapi3.Schema{
-		"name1": parameterSchema1,
-	})
-
-	schema.WithItems(itemSchema)
-
-	mediaType := openapi3.NewMediaType()
-	mediaType.WithSchema(schema)
-
-	selectedExample, err := getTypedExample(mediaType)
-	assert.Nil(t, err)
-
-	selectedExampleJSON, err := json.Marshal(selectedExample)
-	assert.Nil(t, err)
-	assert.NotEmpty(t, string(selectedExampleJSON))
-	assert.Equal(t, `[{"name1":"testvalue"}]`, string(selectedExampleJSON))
+		selectedExampleJSON, err := json.Marshal(selectedExample)
+		assert.Nil(t, err)
+		assert.NotEmpty(t, string(selectedExampleJSON))
+		td.validateResult(t, string(selectedExampleJSON))
+	}
 }
 
 func Test_GetTypedExampleShouldReturnErrorIfCannotGetFullExample(t *testing.T) {
