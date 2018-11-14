@@ -120,6 +120,16 @@ var getTypedExampleTestDataEntries = []getTypedExampleTestData{
 			assert.Equal(t, `"string"`, s)
 		},
 	},
+	getTypedExampleTestData{
+		name: "BooleanSchema",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewBoolSchema()
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `true`, s)
+		},
+	},
 }
 
 func Test_GetTypedExampleTest(t *testing.T) {
@@ -147,7 +157,7 @@ func Test_GetTypedExampleShouldReturnErrorIfCannotGetFullExample(t *testing.T) {
 	parameterSchema1.Example = "testvalue"
 
 	parameterSchema2 := openapi3.NewObjectSchema()
-	nestedParameterSchemaWithoutExample := openapi3.NewBoolSchema()
+	nestedParameterSchemaWithoutExample := openapi3.NewObjectSchema()
 	parameterSchema2.WithProperty("nestedProperty", nestedParameterSchemaWithoutExample)
 
 	schema.WithProperties(map[string]*openapi3.Schema{
