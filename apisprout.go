@@ -162,6 +162,9 @@ func getTypedExampleFromSchema(schema *openapi3.Schema) (interface{}, error) {
 		return schema.Example, nil
 	}
 
+	if schema.Type == "string" {
+		return "string", nil
+	}
 	if schema.Type == "array" {
 		example := []interface{}{}
 		if schema.Items != nil && schema.Items.Value != nil {

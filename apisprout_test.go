@@ -99,6 +99,27 @@ var getTypedExampleTestDataEntries = []getTypedExampleTestData{
 			assert.Equal(t, `[{"name1":"testvalue"}]`, s)
 		},
 	},
+	getTypedExampleTestData{
+		name: "StringSchemaWithExample",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewStringSchema()
+			schema.Example = "examplestr"
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `"examplestr"`, s)
+		},
+	},
+	getTypedExampleTestData{
+		name: "StringSchemaWithoutExample",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewStringSchema()
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `"string"`, s)
+		},
+	},
 }
 
 func Test_GetTypedExampleTest(t *testing.T) {
