@@ -69,6 +69,52 @@ func Test_GetTypedExampleShouldGetFromSchemaPropertiesExampleField(t *testing.T)
 	assert.Equal(t, `{"name1":"testvalue","name2":{"nestedProperty":true}}`, string(selectedExampleJSON))
 }
 
+func Test_GetTypedExampleShouldGetFromSchemaArrayItemsStringExampleField(t *testing.T) {
+	schema := openapi3.NewArraySchema()
+
+	itemSchema := openapi3.NewStringSchema()
+	itemSchema.Example = "testvalue"
+
+	schema.WithItems(itemSchema)
+
+	mediaType := openapi3.NewMediaType()
+	mediaType.WithSchema(schema)
+
+	selectedExample, err := getTypedExample(mediaType)
+	assert.Nil(t, err)
+
+	selectedExampleJSON, err := json.Marshal(selectedExample)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, string(selectedExampleJSON))
+	assert.Equal(t, `["testvalue"]`, string(selectedExampleJSON))
+}
+
+func Test_GetTypedExampleShouldGetFromSchemaArrayItemsObjectExampleField(t *testing.T) {
+	schema := openapi3.NewArraySchema()
+
+	itemSchema := openapi3.NewObjectSchema()
+
+	parameterSchema1 := openapi3.NewStringSchema()
+	parameterSchema1.Example = "testvalue"
+
+	itemSchema.WithProperties(map[string]*openapi3.Schema{
+		"name1": parameterSchema1,
+	})
+
+	schema.WithItems(itemSchema)
+
+	mediaType := openapi3.NewMediaType()
+	mediaType.WithSchema(schema)
+
+	selectedExample, err := getTypedExample(mediaType)
+	assert.Nil(t, err)
+
+	selectedExampleJSON, err := json.Marshal(selectedExample)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, string(selectedExampleJSON))
+	assert.Equal(t, `[{"name1":"testvalue"}]`, string(selectedExampleJSON))
+}
+
 func Test_GetTypedExampleShouldReturnErrorIfCannotGetFullExample(t *testing.T) {
 	schema := openapi3.NewSchema()
 
