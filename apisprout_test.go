@@ -151,6 +151,29 @@ var getTypedExampleTestDataEntries = []getTypedExampleTestData{
 			assert.Equal(t, `1`, s)
 		},
 	},
+	getTypedExampleTestData{
+		name: "NumberSchemaWithoutExample",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewSchema()
+			schema.Type = "number"
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `0`, s)
+		},
+	},
+	getTypedExampleTestData{
+		name: "NumberSchemaWithExample",
+		generateInputSchema: func() *openapi3.Schema {
+			schema := openapi3.NewSchema()
+			schema.Type = "number"
+			schema.Example = 1.1
+			return schema
+		},
+		validateResult: func(t *testing.T, s string) {
+			assert.Equal(t, `1.1`, s)
+		},
+	},
 }
 
 func Test_GetTypedExampleTest(t *testing.T) {
