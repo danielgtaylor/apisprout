@@ -109,7 +109,7 @@ func main() {
 	addParameter(flags, "port", "p", 8000, "HTTP port")
 	addParameter(flags, "validate-server", "", false, "Check hostname against configured servers")
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
-	addParameter(flags, "enableCors", "c", false, "Enable CORS on all requests from all origins")
+	addParameter(flags, "enable-cors", "c", false, "Enable CORS on all requests from all origins")
 	// Run the app!
 	root.Execute()
 }
