@@ -187,7 +187,7 @@ func getTypedExampleFromSchema(schema *openapi3.Schema) (interface{}, error) {
 		return example, nil
 	}
 
-	if len(schema.Properties) > 0 {
+	if schema.Type == "object" || len(schema.Properties) > 0 {
 		example := map[string]interface{}{}
 		for k, v := range schema.Properties {
 			ex, err := getTypedExampleFromSchema(v.Value)
