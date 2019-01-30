@@ -3,6 +3,7 @@
 A simple, quick, cross-platform API mock server that returns examples specified in an API description document. Features include:
 
 - OpenAPI 3.x support
+  - Uses operation `examples` or generates examples from `schema`
 - Load from a URL or local file (auto reload with `--watch`)
 - CORS headers enabled by default
 - Accept header content negotiation
