@@ -109,7 +109,8 @@ func main() {
 	addParameter(flags, "port", "p", 8000, "HTTP port")
 	addParameter(flags, "validate-server", "", false, "Check hostname against configured servers")
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
-	addParameter(flags, "enable-cors", "c", true, "Enable CORS on all requests from all origins")
+	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
+
 	// Run the app!
 	root.Execute()
 }
@@ -258,12 +259,7 @@ func server(cmd *cobra.Command, args []string) {
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		//Enable CORS
-		if viper.GetBool("enableCors") {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
+		if !viper.GetBool("disable-cors") {
 			// Handle pre-flight OPTIONS request
 			if (*req).Method == "OPTIONS" {
 				return
@@ -355,13 +351,18 @@ func server(cmd *cobra.Command, args []string) {
 		if mediatype != "" {
 			w.Header().Add("Content-Type", mediatype)
 		}
+
+		if !viper.GetBool("disable-cors") {
+			// Add CORS headers to allow all origins and methods.
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+		}
+
 		w.WriteHeader(status)
 		w.Write(encoded)
 	})
 
 	fmt.Printf("🌱 Sprouting %s on port %d\n", swagger.Info.Title, viper.GetInt("port"))
-	if (viper.GetBool("enableCors")) {
-		fmt.Printf("🌱 - CORS enabled on all requests from all origins\n")
-	}
 	http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil)
 }

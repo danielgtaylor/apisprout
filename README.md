@@ -4,6 +4,7 @@ A simple, quick, cross-platform API mock server that returns examples specified 
 
 - OpenAPI 3.x support
 - Load from a URL or local file
+- CORS headers enabled by default
 - Accept header content negotiation
   - Example: `Accept: application/*`
 - Prefer header to select response to test specific cases
@@ -24,9 +25,6 @@ apisprout my-api.yaml
 # Load from a URL
 apisprout https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/examples/v3.0/api-with-examples.yaml
 ```
-
-# Enable CORS on all requests from all origins, a handy feature for testing/development environment
-apisprout -c my-api.yaml
 
 ## Docker Image
 
