@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 - Put new items here.
 
+## [1.1.1] - 2019-01-30
+- Fix `OPTIONS` request to also include CORS headers.
+
 ## [1.1.0] - 2019-01-29
 - Added the `--watch` (short `-w`) parameter to reload whenever the input file
   changes. This currently only works when using files on disk.
