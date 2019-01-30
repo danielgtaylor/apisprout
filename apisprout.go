@@ -384,7 +384,12 @@ func server(cmd *cobra.Command, args []string) {
 			return
 		}
 
-		log.Printf("%s => %d (%s)", info, status, mediatype)
+		id := route.Operation.OperationID
+		if id == "" {
+			id = route.Operation.Summary
+		}
+
+		log.Printf("%s (%s) => %d (%s)", info, id, status, mediatype)
 
 		var encoded []byte
 
