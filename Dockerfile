@@ -1,4 +1,4 @@
-FROM golang:1.10-alpine as build
+FROM golang:1.11-alpine as build
 WORKDIR $GOPATH/src/github.com/danielgtaylor/apisprout
 COPY . .
 RUN apk add --no-cache git && \

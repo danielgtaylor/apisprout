@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Update Docker build to use Go 1.11.
+- Generate examples from schema when no example is available.
 - Fix path parameter validation.
 - Add CORS headers. Disable with `--disable-cors`.
 - Documentation updates.
