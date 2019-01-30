@@ -260,6 +260,8 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 			if err == nil {
 				return status, mt, example, nil
 			}
+
+			fmt.Printf("Error getting example: %v\n", err)
 		}
 	}
 
