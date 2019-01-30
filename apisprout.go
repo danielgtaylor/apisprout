@@ -381,6 +381,9 @@ func server(cmd *cobra.Command, args []string) {
 		if !viper.GetBool("disable-cors") {
 			// Handle pre-flight OPTIONS request
 			if (*req).Method == "OPTIONS" {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+				w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+				w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 				return
 			}
 		}
