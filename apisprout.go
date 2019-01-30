@@ -196,8 +196,20 @@ func getTypedExampleFromSchema(schema *openapi3.Schema) (interface{}, error) {
 			}
 			example[k] = ex
 		}
+
+		if schema.AdditionalProperties != nil && schema.AdditionalProperties.Value != nil {
+			addl := schema.AdditionalProperties.Value
+			ex, err := getTypedExampleFromSchema(addl)
+			if err != nil {
+				return nil, fmt.Errorf("can't get example for additional properties")
+			}
+
+			example["additionalPropertyName"] = ex
+		}
+
 		return example, nil
 	}
+
 	return nil, ErrNoExample
 }
 
