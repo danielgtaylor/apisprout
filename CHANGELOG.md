@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Put new items here.
+
+## [1.1.0] - 2019-01-29
 - Added the `--watch` (short `-w`) parameter to reload whenever the input file
   changes. This currently only works when using files on disk.
 - Update Docker build to use Go 1.11.
