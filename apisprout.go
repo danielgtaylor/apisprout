@@ -267,7 +267,7 @@ func server(cmd *cobra.Command, args []string) {
 		}
 
 		info := fmt.Sprintf("%s %v", req.Method, req.URL)
-		route, _, err := router.FindRoute(req.Method, req.URL)
+		route, pathParams, err := router.FindRoute(req.Method, req.URL)
 		if err != nil {
 			log.Printf("ERROR: %s => %v", info, err)
 			w.WriteHeader(http.StatusNotFound)
@@ -278,6 +278,7 @@ func server(cmd *cobra.Command, args []string) {
 			err = openapi3filter.ValidateRequest(nil, &openapi3filter.RequestValidationInput{
 				Request: req,
 				Route:   route,
+				PathParams:  pathParams,
 				Options: &openapi3filter.Options{
 					AuthenticationFunc: func(c context.Context, input *openapi3filter.AuthenticationInput) error {
 						// TODO: support more schemes
