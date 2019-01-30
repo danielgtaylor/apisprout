@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gobwas/glob"
@@ -109,6 +110,7 @@ func main() {
 	addParameter(flags, "port", "p", 8000, "HTTP port")
 	addParameter(flags, "validate-server", "", false, "Check hostname against configured servers")
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
+	addParameter(flags, "watch", "w", false, "Reload when input file changes")
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
 
 	// Run the app!
@@ -268,9 +270,40 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 	return 0, "", nil, ErrNoExample
 }
 
+// Load the OpenAPI document and create the router.
+func load(uri string, data []byte) (*openapi3.Swagger, *openapi3filter.Router) {
+	loader := openapi3.NewSwaggerLoader()
+
+	var swagger *openapi3.Swagger
+	var err error
+	if strings.HasSuffix(uri, ".yaml") || strings.HasSuffix(uri, ".yml") {
+		swagger, err = loader.LoadSwaggerFromYAMLData(data)
+	} else {
+		swagger, err = loader.LoadSwaggerFromData(data)
+	}
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if !viper.GetBool("validate-server") {
+		// Clear the server list so no validation happens. Note: this has a side
+		// effect of no longer parsing any server-declared parameters.
+		swagger.Servers = make([]*openapi3.Server, 0)
+	}
+
+	// Create a new router using the OpenAPI document's declared paths.
+	var router = openapi3filter.NewRouter().WithSwagger(swagger)
+
+	return swagger, router
+}
+
 // server loads an OpenAPI file and runs a mock server using the paths and
 // examples defined in the file.
 func server(cmd *cobra.Command, args []string) {
+	var swagger *openapi3.Swagger
+	var router *openapi3filter.Router
+
 	uri := args[0]
 
 	var err error
@@ -289,33 +322,58 @@ func server(cmd *cobra.Command, args []string) {
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		if viper.GetBool("watch") {
+			log.Fatal("Watching a URL is not supported.")
+		}
 	} else {
 		data, err = ioutil.ReadFile(uri)
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		if viper.GetBool("watch") {
+			// Set up a new filesystem watcher and reload the router every time
+			// the file has changed on disk.
+			watcher, err := fsnotify.NewWatcher()
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer watcher.Close()
+
+			go func() {
+				// Since waiting for events or errors is blocking, we do this in a
+				// goroutine. It loops forever here but will exit when the process
+				// is finished, e.g. when you `ctrl+c` to exit.
+				for {
+					select {
+					case event, ok := <-watcher.Events:
+						if !ok {
+							return
+						}
+						if event.Op&fsnotify.Write == fsnotify.Write {
+							fmt.Printf("🌙 Reloading %s\n", uri)
+							data, err = ioutil.ReadFile(uri)
+							if err != nil {
+								log.Fatal(err)
+							}
+
+							swagger, router = load(uri, data)
+						}
+					case err, ok := <-watcher.Errors:
+						if !ok {
+							return
+						}
+						fmt.Println("error:", err)
+					}
+				}
+			}()
+
+			watcher.Add(uri)
+		}
 	}
 
-	// Load the OpenAPI document.
-	loader := openapi3.NewSwaggerLoader()
-	var swagger *openapi3.Swagger
-	if strings.HasSuffix(args[0], ".yaml") || strings.HasSuffix(args[0], ".yml") {
-		swagger, err = loader.LoadSwaggerFromYAMLData(data)
-	} else {
-		swagger, err = loader.LoadSwaggerFromData(data)
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if !viper.GetBool("validate-server") {
-		// Clear the server list so no validation happens. Note: this has a side
-		// effect of no longer parsing any server-declared parameters.
-		swagger.Servers = make([]*openapi3.Server, 0)
-	}
-
-	// Create a new router using the OpenAPI document's declared paths.
-	var router = openapi3filter.NewRouter().WithSwagger(swagger)
+	swagger, router = load(uri, data)
 
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
@@ -337,9 +395,9 @@ func server(cmd *cobra.Command, args []string) {
 
 		if viper.GetBool("validate-request") {
 			err = openapi3filter.ValidateRequest(nil, &openapi3filter.RequestValidationInput{
-				Request: req,
-				Route:   route,
-				PathParams:  pathParams,
+				Request:    req,
+				Route:      route,
+				PathParams: pathParams,
 				Options: &openapi3filter.Options{
 					AuthenticationFunc: func(c context.Context, input *openapi3filter.AuthenticationInput) error {
 						// TODO: support more schemes
