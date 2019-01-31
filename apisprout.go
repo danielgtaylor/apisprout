@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -387,9 +388,16 @@ func server(cmd *cobra.Command, args []string) {
 				return
 			}
 		}
-
 		info := fmt.Sprintf("%s %v", req.Method, req.URL)
-		route, pathParams, err := router.FindRoute(req.Method, req.URL)
+
+		reqURL, err := constructURL(swagger.Servers, req.URL)
+		if err != nil {
+			log.Printf("ERROR: construct URL => %v", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		route, pathParams, err := router.FindRoute(req.Method, reqURL)
 		if err != nil {
 			log.Printf("ERROR: %s => %v", info, err)
 			w.WriteHeader(http.StatusNotFound)
@@ -495,4 +503,25 @@ func server(cmd *cobra.Command, args []string) {
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// constructURL constructs a url.URL from openapi3.Servers and req.URL.
+// router.FindRoute() can handle only normalized URL.
+func constructURL(servers openapi3.Servers, reqURL *url.URL) (*url.URL, error) {
+	if len(servers) == 0 {
+		return reqURL, nil
+	}
+
+	u, err := url.Parse(servers[0].URL)
+	if err != nil {
+		return nil, fmt.Errorf("ERROR: invalid server url: %s", servers[0].URL)
+	}
+	u.Path = "" // does not need Path for FindRoute()
+
+	retURL, err := url.Parse(u.String() + reqURL.RequestURI())
+	if err != nil {
+		return nil, fmt.Errorf("ERROR: invalid server url or path: %s", u.String())
+	}
+
+	return retURL, nil
 }
