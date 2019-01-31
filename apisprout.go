@@ -492,5 +492,7 @@ func server(cmd *cobra.Command, args []string) {
 	})
 
 	fmt.Printf("🌱 Sprouting %s on port %d\n", swagger.Info.Title, viper.GetInt("port"))
-	http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil)
+	if err := http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil); err != nil {
+		log.Fatal(err)
+	}
 }
