@@ -375,6 +375,30 @@ func server(cmd *cobra.Command, args []string) {
 
 	swagger, router = load(uri, data)
 
+	if strings.HasPrefix(uri, "http") {
+		http.HandleFunc("/__reload", func(w http.ResponseWriter, r *http.Request) {
+			resp, err := http.Get(uri)
+			if err != nil {
+				log.Printf("ERROR: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte("error while reloading"))
+				return
+			}
+
+			data, err = ioutil.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				log.Printf("ERROR: %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte("error while parsing"))
+				return
+			}
+			swagger, router = load(uri, data)
+			w.WriteHeader(200)
+			w.Write([]byte("reloaded"))
+		})
+	}
+
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
