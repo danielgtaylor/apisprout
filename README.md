@@ -39,7 +39,8 @@ docker run -p 8000:8000 danielgtaylor/apisprout http://example.com/my-api.yaml
 Configuration can be passed via environment variables, e.g. setting `SPROUT_VALIDATE_REQUEST=1`, or by passing commandline flags. It is also possible to use a local API description file via [Docker Volumes](https://docs.docker.com/storage/volumes/):
 
 ```
-docker run -p 8000:8000 -v localfile.yaml:/api.yaml danielgtaylor/apisprout /api.yaml
+# Remeber to put the full path to local archive YAML in -v
+docker run -p 8000:8000 -v $FULLPATH/localfile.yaml:/api.yaml danielgtaylor/apisprout /api.yaml
 ```
 
 ## Installation
