@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -215,4 +218,58 @@ func Test_GetTypedExampleShouldReturnErrorIfCannotGetFullExample(t *testing.T) {
 	selectedExample, err := getTypedExample(mediaType)
 	assert.NotNil(t, err)
 	assert.Nil(t, selectedExample)
+}
+
+func Test_constructURL(t *testing.T) {
+	servers := []*openapi3.Server{
+		&openapi3.Server{
+			URL: "http://a.b.example.com",
+		},
+		&openapi3.Server{
+			URL: "http://foo.bar.com",
+		},
+	}
+
+	u, _ := url.Parse("http://a.b.example.com/path1/path2")
+	ret, err := constructURL(servers, u)
+	assert.Nil(t, err)
+	assert.Equal(t, ret[0].String(), "http://a.b.example.com/path1/path2")
+	assert.Equal(t, ret[1].String(), "http://foo.bar.com/path1/path2")
+}
+
+func Test_findRoute(t *testing.T) {
+	swagger := &openapi3.Swagger{
+		Paths: openapi3.Paths{
+			"/path1/path2": &openapi3.PathItem{
+				Get: &openapi3.Operation{},
+			},
+		},
+		Servers: []*openapi3.Server{
+			&openapi3.Server{
+				URL: "http://a.b.example.com/v1",
+			},
+			&openapi3.Server{
+				URL: "http://foo.bar.com/v2",
+			},
+		},
+	}
+	router := openapi3filter.NewRouter().WithSwagger(swagger)
+
+	fixtures := []struct {
+		url string
+		err error
+	}{
+		{"http://a.b.example.com/v1/path1/path2", nil},
+		{"http://foo.bar.com/v2/path1/path2", nil},
+		{"http://foo.bar.com/path1/path2", fmt.Errorf("can not find route")},
+	}
+	for _, f := range fixtures {
+		u, _ := url.Parse(f.url)
+		_, _, err := findRoute(router, "GET", u, swagger.Servers)
+		if f.err == nil {
+			assert.Nil(t, err, f.url)
+		} else {
+			assert.NotNil(t, err, f.url)
+		}
+	}
 }

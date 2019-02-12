@@ -113,6 +113,7 @@ func main() {
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
 	addParameter(flags, "watch", "w", false, "Reload when input file changes")
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
+	addParameter(flags, "disable-basepath", "", true, "Disable base path")
 
 	// Run the app!
 	root.Execute()
@@ -390,14 +391,13 @@ func server(cmd *cobra.Command, args []string) {
 		}
 		info := fmt.Sprintf("%s %v", req.Method, req.URL)
 
-		reqURL, err := constructURL(swagger.Servers, req.URL)
-		if err != nil {
-			log.Printf("ERROR: construct URL => %v", err)
-			w.WriteHeader(http.StatusNotFound)
-			return
+		var route *openapi3filter.Route
+		var pathParams map[string]string
+		if viper.GetBool("disable-basepath") {
+			route, pathParams, err = router.FindRoute(req.Method, req.URL)
+		} else {
+			route, pathParams, err = findRoute(router, req.Method, req.URL, swagger.Servers)
 		}
-
-		route, pathParams, err := router.FindRoute(req.Method, reqURL)
 		if err != nil {
 			log.Printf("ERROR: %s => %v", info, err)
 			w.WriteHeader(http.StatusNotFound)
@@ -507,21 +507,42 @@ func server(cmd *cobra.Command, args []string) {
 
 // constructURL constructs a url.URL from openapi3.Servers and req.URL.
 // router.FindRoute() can handle only normalized URL.
-func constructURL(servers openapi3.Servers, reqURL *url.URL) (*url.URL, error) {
+func constructURL(servers openapi3.Servers, reqURL *url.URL) ([]*url.URL, error) {
+	var ret = make([]*url.URL, 0)
+
 	if len(servers) == 0 {
-		return reqURL, nil
+		return append(ret, reqURL), nil
 	}
 
-	u, err := url.Parse(servers[0].URL)
+	for _, server := range servers {
+		u, err := url.Parse(server.URL)
+		if err != nil {
+			return nil, fmt.Errorf("ERROR: invalid server url: %s", servers[0].URL)
+		}
+		u.Path = "" // does not need Path for FindRoute()
+
+		retURL, err := url.Parse(u.String() + reqURL.RequestURI())
+		if err != nil {
+			return nil, fmt.Errorf("ERROR: invalid server url or path: %s", u.String())
+		}
+		ret = append(ret, retURL)
+	}
+
+	return ret, nil
+}
+
+// findRoute find one of route matches servers
+func findRoute(router *openapi3filter.Router, method string, reqURL *url.URL, servers []*openapi3.Server) (*openapi3filter.Route, map[string]string, error) {
+	urls, err := constructURL(servers, reqURL)
 	if err != nil {
-		return nil, fmt.Errorf("ERROR: invalid server url: %s", servers[0].URL)
+		return nil, nil, err
 	}
-	u.Path = "" // does not need Path for FindRoute()
-
-	retURL, err := url.Parse(u.String() + reqURL.RequestURI())
-	if err != nil {
-		return nil, fmt.Errorf("ERROR: invalid server url or path: %s", u.String())
+	for _, u := range urls {
+		route, pathParams, err := router.FindRoute(method, u)
+		if err == nil {
+			return route, pathParams, nil
+		}
 	}
 
-	return retURL, nil
+	return nil, nil, fmt.Errorf("can not find route")
 }
