@@ -16,11 +16,12 @@ type getTypedExampleTestData struct {
 
 func Test_GetTypedExampleShouldGetFromExampleField(t *testing.T) {
 	exampleData := map[string]string{"name1": "value1", "name2": "value2"}
+	prefer := make(map[string][]string)
 
 	mediaType := openapi3.NewMediaType()
 	mediaType.WithExample("example1", exampleData)
 
-	selectedExample, err := getTypedExample(mediaType)
+	selectedExample, err := getTypedExample(mediaType, prefer)
 	assert.Nil(t, err)
 
 	selectedExampleJSON, err := json.Marshal(selectedExample)
@@ -177,6 +178,7 @@ var getTypedExampleTestDataEntries = []getTypedExampleTestData{
 }
 
 func Test_GetTypedExampleTest(t *testing.T) {
+	prefer := make(map[string][]string)
 
 	for _, td := range getTypedExampleTestDataEntries {
 		t.Logf("testcase: '%s'", td.name)
@@ -184,7 +186,7 @@ func Test_GetTypedExampleTest(t *testing.T) {
 		mediaType := openapi3.NewMediaType()
 		mediaType.WithSchema(td.generateInputSchema())
 
-		selectedExample, err := getTypedExample(mediaType)
+		selectedExample, err := getTypedExample(mediaType, prefer)
 		assert.Nil(t, err)
 
 		selectedExampleJSON, err := json.Marshal(selectedExample)
@@ -196,6 +198,7 @@ func Test_GetTypedExampleTest(t *testing.T) {
 
 func Test_GetTypedExampleShouldReturnErrorIfCannotGetFullExample(t *testing.T) {
 	schema := openapi3.NewSchema()
+	prefer := make(map[string][]string)
 
 	parameterSchema1 := openapi3.NewStringSchema()
 	parameterSchema1.Example = "testvalue"
@@ -212,7 +215,26 @@ func Test_GetTypedExampleShouldReturnErrorIfCannotGetFullExample(t *testing.T) {
 	mediaType := openapi3.NewMediaType()
 	mediaType.WithSchema(schema)
 
-	selectedExample, err := getTypedExample(mediaType)
+	selectedExample, err := getTypedExample(mediaType, prefer)
 	assert.NotNil(t, err)
 	assert.Nil(t, selectedExample)
+}
+
+func Test_GetTypedExampleWithPreferShouldGetSpecificExample(t *testing.T) {
+	prefer := make(map[string][]string)
+	prefer["example"] = []string{"example1"}
+
+	exampleData := map[string]string{"name1": "value1", "name2": "value2"}
+	exampleData2 := map[string]string{"name3": "value3", "name4": "value4"}
+	mediaType := openapi3.NewMediaType()
+	mediaType.WithExample("example1", exampleData)
+	mediaType.WithExample("example2", exampleData2)
+
+	selectedExample, err := getTypedExample(mediaType, prefer)
+	assert.Nil(t, err)
+
+	selectedExampleJSON, err := json.Marshal(selectedExample)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, string(selectedExampleJSON))
+	assert.Equal(t, `{"name1":"value1","name2":"value2"}`, string(selectedExampleJSON))
 }

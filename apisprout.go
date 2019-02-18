@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -23,7 +24,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 // GitSummary is filled in by `govvv` for version info.
@@ -135,7 +136,7 @@ func addParameter(flags *pflag.FlagSet, name, short string, def interface{}, des
 // getTypedExample will return an example from a given media type, if such an
 // example exists. If multiple examples are given, then one is selected at
 // random.
-func getTypedExample(mt *openapi3.MediaType) (interface{}, error) {
+func getTypedExample(mt *openapi3.MediaType, prefer map[string][]string) (interface{}, error) {
 	if mt.Example != nil {
 		return mt.Example, nil
 	}
@@ -143,11 +144,21 @@ func getTypedExample(mt *openapi3.MediaType) (interface{}, error) {
 	if len(mt.Examples) > 0 {
 		// Choose a random example to return.
 		keys := make([]string, 0, len(mt.Examples))
+		selectedKeys := make([]string, 0, len(mt.Examples))
 		for k := range mt.Examples {
 			keys = append(keys, k)
+			if prefer["example"] == nil || prefer["example"][0] == "" || k == prefer["example"][0] {
+				selectedKeys = append(selectedKeys, k)
+			}
 		}
 
-		selected := keys[rand.Intn(len(keys))]
+		selected := ""
+		if len(selectedKeys) > 0 {
+			selected = selectedKeys[rand.Intn(len(selectedKeys))]
+		} else {
+			selected = keys[rand.Intn(len(keys))]
+		}
+
 		return mt.Examples[selected].Value.Value, nil
 	}
 
@@ -216,9 +227,9 @@ func getTypedExampleFromSchema(schema *openapi3.Schema) (interface{}, error) {
 }
 
 // getExample tries to return an example for a given operation.
-func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Operation) (int, string, interface{}, error) {
+func getExample(negotiator *ContentNegotiator, prefer map[string][]string, op *openapi3.Operation) (int, string, interface{}, error) {
 	var responses []string
-	if prefer == "" {
+	if prefer["status"][0] == "" {
 		// First, make a list of responses ordered by successful (200-299 status code)
 		// before other types.
 		success := make([]string, 0)
@@ -232,10 +243,10 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 		}
 		responses = append(success, other...)
 	} else {
-		if op.Responses[prefer] == nil {
+		if op.Responses[prefer["status"][0]] == nil {
 			return 0, "", nil, ErrNoExample
 		}
-		responses = []string{prefer}
+		responses = []string{prefer["status"][0]}
 	}
 
 	// Now try to find the first example we can and return it!
@@ -258,7 +269,7 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 				continue
 			}
 
-			example, err := getTypedExample(content)
+			example, err := getTypedExample(content, prefer)
 			if err == nil {
 				return status, mt, example, nil
 			}
@@ -430,12 +441,8 @@ func server(cmd *cobra.Command, args []string) {
 			}
 		}
 
-		prefer := req.Header.Get("Prefer")
-		if strings.HasPrefix(prefer, "status=") {
-			prefer = prefer[7:10]
-		} else {
-			prefer = ""
-		}
+		preferString := req.Header.Get("Prefer")
+		prefer, err := url.ParseQuery(preferString)
 
 		status, mediatype, example, err := getExample(negotiator, prefer, route.Operation)
 		if err != nil {

@@ -10,6 +10,7 @@ A simple, quick, cross-platform API mock server that returns examples specified 
   - Example: `Accept: application/*`
 - Prefer header to select response to test specific cases
   - Example: `Prefer: status=409`
+  - Example: `Prefer: status=200&example=successCase1`
 - Server name validation (enabled with `--validate-server`)
 - Request parameter & body validation (enabled with `--validate-request`)
 - Configuration via:
