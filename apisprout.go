@@ -460,7 +460,7 @@ func server(cmd *cobra.Command, args []string) {
 			encoded = example.([]byte)
 		} else {
 			switch mediatype {
-			case "application/json":
+			case "application/json", "application/vnd.api+json":
 				encoded, err = json.MarshalIndent(example, "", "  ")
 			case "application/x-yaml", "application/yaml", "text/x-yaml", "text/yaml", "text/vnd.yaml":
 				encoded, err = yaml.Marshal(example)
