@@ -229,7 +229,7 @@ func getTypedExampleFromSchema(schema *openapi3.Schema) (interface{}, error) {
 // getExample tries to return an example for a given operation.
 func getExample(negotiator *ContentNegotiator, prefer map[string][]string, op *openapi3.Operation) (int, string, interface{}, error) {
 	var responses []string
-	if prefer["status"][0] == "" {
+	if prefer["status"] == nil || prefer["status"][0] == "" {
 		// First, make a list of responses ordered by successful (200-299 status code)
 		// before other types.
 		success := make([]string, 0)
