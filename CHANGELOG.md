@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 - Put new items here.
 
+## [1.2.0] - 2019-02-27
+- Add support for reloading OpenAPI URLs via `/__reload` on the server.
+- Support external references in OpenAPI loader.
+- Update dependencies, simplify file loading.
+- Support jsonapi.org content type (`application/vnd.api+json`).
+- Switch from `dep` to Go modules.
+
 ## [1.1.1] - 2019-01-30
 - Fix `OPTIONS` request to also include CORS headers.
 
