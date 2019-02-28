@@ -273,14 +273,7 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 // Load the OpenAPI document and create the router.
 func load(uri string, data []byte) (*openapi3.Swagger, *openapi3filter.Router) {
 	loader := openapi3.NewSwaggerLoader()
-
-	var swagger *openapi3.Swagger
-	var err error
-	if strings.HasSuffix(uri, ".yaml") || strings.HasSuffix(uri, ".yml") {
-		swagger, err = loader.LoadSwaggerFromYAMLData(data)
-	} else {
-		swagger, err = loader.LoadSwaggerFromData(data)
-	}
+	swagger, err := loader.LoadSwaggerFromData(data)
 
 	if err != nil {
 		log.Fatal(err)

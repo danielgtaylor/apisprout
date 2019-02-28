@@ -6,11 +6,12 @@ require (
 	github.com/coreos/etcd v3.3.12+incompatible // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fsnotify/fsnotify v1.4.7
-	github.com/getkin/kin-openapi v0.0.0-20181003150400-44c981756c70
+	github.com/getkin/kin-openapi v0.1.1-0.20190210195911-82a13f94c08e
 	github.com/ghodss/yaml v1.0.0
 	github.com/gobwas/glob v0.2.3
 	github.com/hashicorp/hcl v1.0.0
 	github.com/inconshreveable/mousetrap v1.0.0
+	github.com/kr/pty v1.1.3 // indirect
 	github.com/magiconair/properties v1.8.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/pelletier/go-toml v1.2.0
@@ -27,6 +28,5 @@ require (
 	golang.org/x/crypto v0.0.0-20190227175134-215aa809caaf // indirect
 	golang.org/x/sys v0.0.0-20190226215855-775f8194d0f9
 	golang.org/x/text v0.3.0
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v2 v2.2.2
 )
