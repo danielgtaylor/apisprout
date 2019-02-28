@@ -201,7 +201,7 @@ func Test_GetTypedExampleShouldReturnErrorIfCannotGetFullExample(t *testing.T) {
 	parameterSchema1.Example = "testvalue"
 
 	parameterSchema2 := openapi3.NewObjectSchema()
-	nestedParameterSchemaWithoutExample := openapi3.NewObjectSchema()
+	nestedParameterSchemaWithoutExample := openapi3.NewSchema()
 	parameterSchema2.WithProperty("nestedProperty", nestedParameterSchemaWithoutExample)
 
 	schema.WithProperties(map[string]*openapi3.Schema{
