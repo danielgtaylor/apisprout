@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-- Put new items here.
+- Update Docker build to use Go 1.12 and Go modules.
 
 ## [1.2.0] - 2019-02-27
 - Add support for reloading OpenAPI URLs via `/__reload` on the server.
