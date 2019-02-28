@@ -1,5 +1,7 @@
 .DS_Store
 vendor
 logo.png
+apisprout
+apisprout.exe
 apisprout*.zip
 apisprout*.xz
