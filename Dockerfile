@@ -1,9 +1,7 @@
-FROM golang:1.11-alpine as build
-WORKDIR $GOPATH/src/github.com/danielgtaylor/apisprout
+FROM golang:1.12-alpine as build
+WORKDIR /apisprout
 COPY . .
 RUN apk add --no-cache git && \
-  go get -u github.com/golang/dep/cmd/dep && \
-  dep ensure && \
   go get github.com/ahmetb/govvv && \
   govvv install
 
