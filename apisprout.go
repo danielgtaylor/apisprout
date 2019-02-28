@@ -391,6 +391,7 @@ func server(cmd *cobra.Command, args []string) {
 			swagger, router = load(uri, data)
 			w.WriteHeader(200)
 			w.Write([]byte("reloaded"))
+			log.Printf("Reloaded from %s", uri)
 		})
 	}
 
