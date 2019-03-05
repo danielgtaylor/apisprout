@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 - Update Docker build to use Go 1.12 and Go modules.
+- Enhance example-from-schema generation code. Support enums, string formats,
+  array and object examples, min/max and min items.
 
 ## [1.2.0] - 2019-02-27
 - Add support for reloading OpenAPI URLs via `/__reload` on the server.
