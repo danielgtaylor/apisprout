@@ -6,49 +6,161 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-// getTypedExampleFromSchema will return an example from a given schema
-func getTypedExampleFromSchema(schema *openapi3.Schema) (interface{}, error) {
+func getSchemaExample(schema *openapi3.Schema) (interface{}, bool) {
 	if schema.Example != nil {
-		return schema.Example, nil
+		return schema.Example, true
 	}
 
-	if schema.Type == "number" {
-		return 0, nil
+	if schema.Default != nil {
+		return schema.Default, true
 	}
-	if schema.Type == "integer" {
-		return 0, nil
+
+	if schema.Enum != nil && len(schema.Enum) > 0 {
+		return schema.Enum[0], true
 	}
-	if schema.Type == "boolean" {
+
+	return nil, false
+}
+
+// stringFormatExample returns an example string based on the given format.
+// http://json-schema.org/latest/json-schema-validation.html#rfc.section.7.3
+func stringFormatExample(format string) string {
+	switch format {
+	case "date":
+		// https://tools.ietf.org/html/rfc3339
+		return "2018-07-23"
+	case "date-time":
+		// This is the date/time of API Sprout's first commit! :-)
+		return "2018-07-23T22:58:00-07:00"
+	case "time":
+		return "22:58:00-07:00"
+	case "email":
+		return "email@example.com"
+	case "hostname":
+		// https://tools.ietf.org/html/rfc2606#page-2
+		return "example.com"
+	case "ipv4":
+		// https://tools.ietf.org/html/rfc5737
+		return "198.51.100.0"
+	case "ipv6":
+		// https://tools.ietf.org/html/rfc3849
+		return "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+	case "uri":
+		return "https://tools.ietf.org/html/rfc3986"
+	case "uri-template":
+		// https://tools.ietf.org/html/rfc6570
+		return "http://example.com/dictionary/{term:1}/{term}"
+	case "json-pointer":
+		// https://tools.ietf.org/html/rfc6901
+		return "#/components/parameters/term"
+	case "regex":
+		// https://stackoverflow.com/q/3296050/164268
+		return "/^1?$|^(11+?)\\1+$/"
+	case "uuid":
+		// https://www.ietf.org/rfc/rfc4122.txt
+		return "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+	case "password":
+		return "********"
+	}
+
+	return ""
+}
+
+// OpenAPIExample creates an example structure from an OpenAPI 3 schema
+// object, which is an extended subset of JSON Schema.
+// https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.1.md#schemaObject
+func OpenAPIExample(schema *openapi3.Schema) (interface{}, error) {
+	if ex, ok := getSchemaExample(schema); ok {
+		return ex, nil
+	}
+
+	switch {
+	case schema.Type == "boolean":
 		return true, nil
-	}
-	if schema.Type == "string" {
-		return "string", nil
-	}
-	if schema.Type == "array" {
+	case schema.Type == "number", schema.Type == "integer":
+		value := 0.0
+
+		if schema.Min != nil && *schema.Min > value {
+			value = *schema.Min
+			if schema.ExclusiveMin {
+				if schema.Max != nil {
+					// Make the value half way.
+					value = (*schema.Min + *schema.Max) / 2.0
+				} else {
+					value++
+				}
+			}
+		}
+
+		if schema.Max != nil && *schema.Max < value {
+			value = *schema.Max
+			if schema.ExclusiveMax {
+				if schema.Min != nil {
+					// Make the value half way.
+					value = (*schema.Min + *schema.Max) / 2.0
+				} else {
+					value--
+				}
+			}
+		}
+
+		if schema.MultipleOf != nil && int(value)%int(*schema.MultipleOf) != 0 {
+			value += float64(int(*schema.MultipleOf) - (int(value) % int(*schema.MultipleOf)))
+		}
+
+		if schema.Type == "integer" {
+			return int(value), nil
+		}
+
+		return value, nil
+	case schema.Type == "string":
+		if ex := stringFormatExample(schema.Format); ex != "" {
+			return ex, nil
+		}
+
+		example := "string"
+
+		for schema.MinLength > uint64(len(example)) {
+			example += example
+		}
+
+		if schema.MaxLength != nil && *schema.MaxLength < uint64(len(example)) {
+			example = example[:*schema.MaxLength]
+		}
+
+		return example, nil
+	case schema.Type == "array", schema.Items != nil:
 		example := []interface{}{}
+
 		if schema.Items != nil && schema.Items.Value != nil {
-			ex, err := getTypedExampleFromSchema(schema.Items.Value)
+			ex, err := OpenAPIExample(schema.Items.Value)
 			if err != nil {
 				return nil, fmt.Errorf("can't get example for array item")
 			}
-			example = append(example, ex)
-		}
-		return example, nil
-	}
 
-	if schema.Type == "object" || len(schema.Properties) > 0 {
+			example = append(example, ex)
+
+			for uint64(len(example)) < schema.MinItems {
+				example = append(example, ex)
+			}
+		}
+
+		return example, nil
+	case schema.Type == "object", len(schema.Properties) > 0:
 		example := map[string]interface{}{}
+
 		for k, v := range schema.Properties {
-			ex, err := getTypedExampleFromSchema(v.Value)
+			ex, err := OpenAPIExample(v.Value)
 			if err != nil {
 				return nil, fmt.Errorf("can't get example for '%s'", k)
 			}
+
 			example[k] = ex
 		}
 
 		if schema.AdditionalProperties != nil && schema.AdditionalProperties.Value != nil {
 			addl := schema.AdditionalProperties.Value
-			ex, err := getTypedExampleFromSchema(addl)
+			ex, err := OpenAPIExample(addl)
 			if err != nil {
 				return nil, fmt.Errorf("can't get example for additional properties")
 			}

@@ -152,7 +152,7 @@ func getTypedExample(mt *openapi3.MediaType) (interface{}, error) {
 	}
 
 	if mt.Schema != nil {
-		return getTypedExampleFromSchema(mt.Schema.Value)
+		return OpenAPIExample(mt.Schema.Value)
 	}
 	// TODO: generate data from JSON schema, if no examples available?
 
