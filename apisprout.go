@@ -13,6 +13,7 @@ import (
 	url2 "net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -287,6 +288,9 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 
 // Load the OpenAPI document and create the router.
 func load(uri string, data []byte) (*openapi3.Swagger, *openapi3filter.Router) {
+	// save path to all included file
+	paths := []string{getPathExcludeFileName(uri)}
+
 	loader := openapi3.NewSwaggerLoader()
 	loader.IsExternalRefsAllowed = true
 
@@ -295,7 +299,7 @@ func load(uri string, data []byte) (*openapi3.Swagger, *openapi3filter.Router) {
 		log.Fatal(err)
 	}
 
-	resolveRefInsidePaths(loader, swagger)
+	resolveRefInsidePaths(loader, swagger, &paths)
 
 	if !viper.GetBool("validate-server") {
 		// Clear the server list so no validation happens. Note: this has a side
@@ -537,10 +541,10 @@ func server(cmd *cobra.Command, args []string) {
 
 // This function will be represent to check all the ref inside key paths from
 // openapispecification3 file
-func resolveRefInsidePaths(loader *openapi3.SwaggerLoader, swagger *openapi3.Swagger) {
+func resolveRefInsidePaths(loader *openapi3.SwaggerLoader, swagger *openapi3.Swagger, paths *[]string) {
 	for k, path := range swagger.Paths {
 		source := parseStructToMap(path)
-		resolveRef(loader, source)
+		resolveRef(loader, source, paths)
 
 		swagger.Paths[k] = parseMapToPathItem(source)
 
@@ -549,10 +553,10 @@ func resolveRefInsidePaths(loader *openapi3.SwaggerLoader, swagger *openapi3.Swa
 
 // This function will be represent to check the $ref as property inside map
 // and nested map
-func resolveRef(loader *openapi3.SwaggerLoader, source map[string]interface{}) {
+func resolveRef(loader *openapi3.SwaggerLoader, source map[string]interface{}, paths *[]string) {
 	for k, v := range source {
 		if maps, valid := v.(map[string]interface{}); k != "$ref" && valid && len(maps) > 0 {
-			resolveRef(loader, maps)
+			resolveRef(loader, maps, paths)
 		} else if k == "$ref" {
 			var data map[string]interface{}
 			ref := v.(string)
@@ -564,17 +568,17 @@ func resolveRef(loader *openapi3.SwaggerLoader, source map[string]interface{}) {
 					panic(err)
 				}
 				removeKeys(res)
-				resolveRef(loader, res)
+				resolveRef(loader, res, paths)
 				data = res
 
 				break
 			case LocalFile:
-				res, err := readLocalFile(loader, ref)
+				res, err := readLocalFile(loader, ref, paths)
 				if err != nil {
 					panic(err)
 				}
 				removeKeys(res)
-				resolveRef(loader, res)
+				resolveRef(loader, res, paths)
 				data = res
 
 				break
@@ -618,9 +622,11 @@ func readNetworkFile(loader *openapi3.SwaggerLoader, url string) (map[string]int
 
 // This function will be represent to read file from local file with extension
 // yaml or json
-func readLocalFile(loader *openapi3.SwaggerLoader, path string) (map[string]interface{}, error) {
+func readLocalFile(loader *openapi3.SwaggerLoader, path string, paths *[]string) (map[string]interface{}, error) {
 	// read file from location path
-	data, err := ioutil.ReadFile(path)
+	*paths = append((*paths), getPathExcludeFileName(path))
+	fullPath := fmt.Sprintf("%s%s", strings.Join((*paths), ""), path)
+	data, err := ioutil.ReadFile(fullPath)
 	if err != nil {
 		return nil, err
 	}
@@ -661,11 +667,23 @@ func appendKeyToOriginalMap(original map[string]interface{}, additional map[stri
 	}
 }
 
-// remove all keys at variable ExcludeKeys
+// This function will be represent to remove all keys at variable ExcludeKeys
 func removeKeys(maps map[string]interface{}) {
 	for _, v := range ExcludeKeys {
 		if _, exists := maps[v]; exists {
 			delete(maps, v)
 		}
 	}
+}
+
+// This function will be represent to remove filename inside path
+func getPathExcludeFileName(path string) string {
+	pattern := `[a-zA-Z0-9]*.(yaml|yml|json)$`
+	strs := regexp.MustCompile(pattern).Split(path, -1)
+
+	if len(strs) > 0 {
+		return strs[0]
+	}
+
+	return path
 }
