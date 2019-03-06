@@ -10,8 +10,10 @@ import (
 	"math/rand"
 	"mime"
 	"net/http"
+	url2 "net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +41,20 @@ var (
 	// ErrMissingAuth is set when no authorization header or key is present but
 	// one is required by the API description.
 	ErrMissingAuth = errors.New("Missing auth")
+)
+
+// constanta type for flagging type file
+var (
+	// NetworkFile is file from network, usually have prefix http
+	NetworkFile = "NetworkFile"
+
+	// LocalFile is file from another location path
+	LocalFile = "LocalFile"
+)
+
+// constanta type for exclude data from this keys at below
+var (
+	ExcludeKeys = []string{"openapi", "components", "description", "info"}
 )
 
 // ContentNegotiator is used to match a media type during content negotiation
@@ -216,14 +232,18 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 
 // Load the OpenAPI document and create the router.
 func load(uri string, data []byte) (*openapi3.Swagger, *openapi3filter.Router) {
+	// save path to all included file
+	paths := []string{getPathExcludeFileName(uri)}
+
 	loader := openapi3.NewSwaggerLoader()
 	loader.IsExternalRefsAllowed = true
 
 	swagger, err := loader.LoadSwaggerFromData(data)
-
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	resolveRefInsidePaths(loader, swagger, &paths)
 
 	if !viper.GetBool("validate-server") {
 		// Clear the server list so no validation happens. Note: this has a side
@@ -457,4 +477,157 @@ func server(cmd *cobra.Command, args []string) {
 
 	fmt.Printf("🌱 Sprouting %s on port %d\n", swagger.Info.Title, viper.GetInt("port"))
 	http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil)
+}
+
+// Add new feature inside api sprout with the functionality to read the
+// all reference object with type localfile or network. Some method at below
+// using mutable
+
+// This function will be represent to check all the ref inside key paths from
+// openapispecification3 file
+func resolveRefInsidePaths(loader *openapi3.SwaggerLoader, swagger *openapi3.Swagger, paths *[]string) {
+	for k, path := range swagger.Paths {
+		source := parseStructToMap(path)
+		resolveRef(loader, source, paths)
+
+		swagger.Paths[k] = parseMapToPathItem(source)
+
+	}
+}
+
+// This function will be represent to check the $ref as property inside map
+// and nested map
+func resolveRef(loader *openapi3.SwaggerLoader, source map[string]interface{}, paths *[]string) {
+	for k, v := range source {
+		if maps, valid := v.(map[string]interface{}); k != "$ref" && valid && len(maps) > 0 {
+			resolveRef(loader, maps, paths)
+		} else if k == "$ref" {
+			var data map[string]interface{}
+			ref := v.(string)
+
+			switch determineTypeRef(ref) {
+			case NetworkFile:
+				res, err := readNetworkFile(loader, ref)
+				if err != nil {
+					panic(err)
+				}
+				removeKeys(res)
+				resolveRef(loader, res, paths)
+				data = res
+
+				break
+			case LocalFile:
+				res, err := readLocalFile(loader, ref, paths)
+				if err != nil {
+					panic(err)
+				}
+				removeKeys(res)
+				resolveRef(loader, res, paths)
+				data = res
+
+				break
+			default:
+				break
+			}
+
+			appendKeyToOriginalMap(source, data)
+		}
+	}
+}
+
+// This function will be represent to determine the type file at $ref
+// so we should to check the reference file is network file or local file
+// if one of both them, we shoul doing something on there. But if the
+// type file is component we just avoid that
+func determineTypeRef(refVal string) string {
+	if isNetworkFile := strings.HasPrefix(refVal, "http"); isNetworkFile {
+		return NetworkFile
+	}
+
+	if isComponent := strings.HasPrefix(refVal, "#"); isComponent {
+		return ""
+	}
+
+	return LocalFile
+}
+
+// This function will be represent to request to api, to get yaml or json
+// file
+func readNetworkFile(loader *openapi3.SwaggerLoader, url string) (map[string]interface{}, error) {
+	swagger, err := loader.LoadSwaggerFromURI(&url2.URL{
+		RawPath: url,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return parseStructToMap(swagger), nil
+}
+
+// This function will be represent to read file from local file with extension
+// yaml or json
+func readLocalFile(loader *openapi3.SwaggerLoader, path string, paths *[]string) (map[string]interface{}, error) {
+	// read file from location path
+	*paths = append((*paths), getPathExcludeFileName(path))
+	fullPath := fmt.Sprintf("%s%s", strings.Join((*paths), ""), path)
+	data, err := ioutil.ReadFile(fullPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// data we got from read file, parse into openapi format
+	swagger, err := loader.LoadSwaggerFromData(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseStructToMap(swagger), nil
+}
+
+// This function will be represent to parse the struct to be
+// map type
+func parseStructToMap(data interface{}) map[string]interface{} {
+	res := map[string]interface{}{}
+	raw, _ := json.Marshal(data)
+	json.Unmarshal(raw, &res)
+
+	return res
+}
+
+// This function will be represent to parse the map to be
+// path item
+func parseMapToPathItem(maps map[string]interface{}) *openapi3.PathItem {
+	data, _ := json.Marshal(maps)
+	var res openapi3.PathItem
+
+	json.Unmarshal(data, &res)
+	return &res
+}
+
+// This function will be represent to append some key into a source map
+func appendKeyToOriginalMap(original map[string]interface{}, additional map[string]interface{}) {
+	for k, v := range additional {
+		original[k] = v
+	}
+}
+
+// This function will be represent to remove all keys at variable ExcludeKeys
+func removeKeys(maps map[string]interface{}) {
+	for _, v := range ExcludeKeys {
+		if _, exists := maps[v]; exists {
+			delete(maps, v)
+		}
+	}
+}
+
+// This function will be represent to remove filename inside path
+func getPathExcludeFileName(path string) string {
+	pattern := `[a-zA-Z0-9]*.(yaml|yml|json)$`
+	strs := regexp.MustCompile(pattern).Split(path, -1)
+
+	if len(strs) > 0 {
+		return strs[0]
+	}
+
+	return path
 }
