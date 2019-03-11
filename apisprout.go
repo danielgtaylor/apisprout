@@ -215,14 +215,22 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 }
 
 // Load the OpenAPI document and create the router.
-func load(uri string, data []byte) (*openapi3.Swagger, *openapi3filter.Router) {
+func load(uri string, data []byte) (swagger *openapi3.Swagger, router *openapi3filter.Router, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			swagger = nil
+			router = nil
+			err = fmt.Errorf("Caught panic while trying to load")
+		}
+	}()
+
 	loader := openapi3.NewSwaggerLoader()
 	loader.IsExternalRefsAllowed = true
 
 	swagger, err := loader.LoadSwaggerFromData(data)
 
 	if err != nil {
-		log.Fatal(err)
+		return
 	}
 
 	if !viper.GetBool("validate-server") {
@@ -232,9 +240,9 @@ func load(uri string, data []byte) (*openapi3.Swagger, *openapi3filter.Router) {
 	}
 
 	// Create a new router using the OpenAPI document's declared paths.
-	var router = openapi3filter.NewRouter().WithSwagger(swagger)
+	router = openapi3filter.NewRouter().WithSwagger(swagger)
 
-	return swagger, router
+	return
 }
 
 // server loads an OpenAPI file and runs a mock server using the paths and
@@ -297,7 +305,12 @@ func server(cmd *cobra.Command, args []string) {
 								log.Fatal(err)
 							}
 
-							swagger, router = load(uri, data)
+							if s, r, err := load(uri, data); err == nil {
+								swagger = s
+								router = r
+							} else {
+								log.Printf("ERROR: Unable to load OpenAPI document: %s", err)
+							}
 						}
 					case err, ok := <-watcher.Errors:
 						if !ok {
@@ -312,7 +325,10 @@ func server(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	swagger, router = load(uri, data)
+	swagger, router, err = load(uri, data)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	if strings.HasPrefix(uri, "http") {
 		http.HandleFunc("/__reload", func(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +348,12 @@ func server(cmd *cobra.Command, args []string) {
 				w.Write([]byte("error while parsing"))
 				return
 			}
-			swagger, router = load(uri, data)
+
+			if s, r, err := load(uri, data); err == nil {
+				swagger = s
+				router = r
+			}
+
 			w.WriteHeader(200)
 			w.Write([]byte("reloaded"))
 			log.Printf("Reloaded from %s", uri)

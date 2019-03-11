@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Be more resilient to parser panics when using `--watch`
 - Update Docker build to use Go 1.12 and Go modules.
 - Enhance example-from-schema generation code. Support enums, string formats,
   array and object examples, min/max and min items.
