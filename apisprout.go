@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -227,8 +228,13 @@ func load(uri string, data []byte) (swagger *openapi3.Swagger, router *openapi3f
 	loader := openapi3.NewSwaggerLoader()
 	loader.IsExternalRefsAllowed = true
 
-	swagger, err := loader.LoadSwaggerFromData(data)
+	var u *url.URL
+	u, err = url.Parse(uri)
+	if err != nil {
+		return
+	}
 
+	swagger, err = loader.LoadSwaggerFromDataWithPath(data, u)
 	if err != nil {
 		return
 	}
