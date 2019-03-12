@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -21,6 +20,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/gobwas/glob"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -221,7 +221,11 @@ func load(uri string, data []byte) (swagger *openapi3.Swagger, router *openapi3f
 		if r := recover(); r != nil {
 			swagger = nil
 			router = nil
-			err = fmt.Errorf("Caught panic while trying to load")
+			if e, ok := r.(error); ok {
+				err = errors.Wrap(e, "Caught panic while trying to load")
+			} else {
+				err = fmt.Errorf("Caught panic while trying to load")
+			}
 		}
 	}()
 

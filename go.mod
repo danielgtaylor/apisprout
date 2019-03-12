@@ -15,6 +15,7 @@ require (
 	github.com/magiconair/properties v1.8.0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/pelletier/go-toml v1.2.0
+	github.com/pkg/errors v0.8.1
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/afero v1.2.1
 	github.com/spf13/cast v1.3.0
