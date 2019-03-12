@@ -370,11 +370,33 @@ func server(cmd *cobra.Command, args []string) {
 	// the appropriate OpenAPI operation and try to return an example.
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		if !viper.GetBool("disable-cors") {
+			corsOrigin := req.Header.Get("Origin")
+			if corsOrigin == "" {
+				corsOrigin = "*"
+			}
+			w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
+
+			if corsOrigin != "*" {
+				// Allow credentials to be sent if an origin has  been specified.
+				// This is done *outside* of an OPTIONS request since it might be
+				// required for a non-preflighted GET/POST request.
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
+
 			// Handle pre-flight OPTIONS request
 			if (*req).Method == "OPTIONS" {
-				w.Header().Set("Access-Control-Allow-Origin", "*")
-				w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-				w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+				corsMethod := req.Header.Get("Access-Control-Request-Method")
+				if corsMethod == "" {
+					corsMethod = "POST, GET, OPTIONS, PUT, DELETE"
+				}
+
+				corsHeaders := req.Header.Get("Access-Control-Request-Headers")
+				if corsHeaders == "" {
+					corsHeaders = "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization"
+				}
+
+				w.Header().Set("Access-Control-Allow-Methods", corsMethod)
+				w.Header().Set("Access-Control-Allow-Headers", corsHeaders)
 				return
 			}
 		}
@@ -469,13 +491,6 @@ func server(cmd *cobra.Command, args []string) {
 
 		if mediatype != "" {
 			w.Header().Add("Content-Type", mediatype)
-		}
-
-		if !viper.GetBool("disable-cors") {
-			// Add CORS headers to allow all origins and methods.
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 		}
 
 		w.WriteHeader(status)
