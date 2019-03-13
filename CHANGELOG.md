@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Add `readOnly` and `writeOnly` support to the example generator.
 - Revamped support for `--validate-server` (short `-s`)
   - Requires the use of server base path(s) on the client.
   - Localhost is now always allowed on all known base paths.

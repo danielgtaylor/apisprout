@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -377,6 +378,45 @@ var schemaTests = []struct {
 		`{"type": "string", "default": "one", "example": "two"}`,
 		`"two"`,
 	},
+	// ----- Modes -----
+	{
+		"Request mode",
+		`{"type": "object", "required": ["normal", "readOnly", "writeOnly"],
+			"properties": {
+				"normal": {
+					"type": "string"
+				},
+				"readOnly": {
+					"type": "string",
+					"readOnly": true
+				},
+				"writeOnly": {
+					"type": "string",
+					"writeOnly": true
+				}
+			}
+		}`,
+		`{"normal": "string", "writeOnly": "string"}`,
+	},
+	{
+		"Response mode",
+		`{"type": "object", "required": ["normal", "readOnly", "writeOnly"],
+			"properties": {
+				"normal": {
+					"type": "string"
+				},
+				"readOnly": {
+					"type": "string",
+					"readOnly": true
+				},
+				"writeOnly": {
+					"type": "string",
+					"writeOnly": true
+				}
+			}
+		}`,
+		`{"normal": "string", "readOnly": "string"}`,
+	},
 }
 
 func TestGenExample(t *testing.T) {
@@ -385,7 +425,11 @@ func TestGenExample(t *testing.T) {
 			schema := &openapi3.Schema{}
 			err := schema.UnmarshalJSON([]byte(tt.in))
 			assert.NoError(t, err)
-			example, err := OpenAPIExample(schema)
+			m := ModeRequest
+			if strings.Contains(tt.name, "Response") {
+				m = ModeResponse
+			}
+			example, err := OpenAPIExample(m, schema)
 
 			if tt.out == "" {
 				// Expected to return an error.

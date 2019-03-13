@@ -6,6 +6,16 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+// Mode defines a mode of operation for example generation.
+type Mode int
+
+const (
+	// ModeRequest is for the request body (writes to the server)
+	ModeRequest Mode = iota
+	// ModeResponse is for the response body (reads from the server)
+	ModeResponse
+)
+
 func getSchemaExample(schema *openapi3.Schema) (interface{}, bool) {
 	if schema.Example != nil {
 		return schema.Example, true
@@ -66,10 +76,26 @@ func stringFormatExample(format string) string {
 	return ""
 }
 
+// excludeFromMode will exclude a schema if the mode is request and the schema
+// is read-only, or if the mode is response and the schema is write only.
+func excludeFromMode(mode Mode, schema *openapi3.Schema) bool {
+	if schema == nil {
+		return true
+	}
+
+	if mode == ModeRequest && schema.ReadOnly {
+		return true
+	} else if mode == ModeResponse && schema.WriteOnly {
+		return true
+	}
+
+	return false
+}
+
 // OpenAPIExample creates an example structure from an OpenAPI 3 schema
 // object, which is an extended subset of JSON Schema.
 // https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.1.md#schemaObject
-func OpenAPIExample(schema *openapi3.Schema) (interface{}, error) {
+func OpenAPIExample(mode Mode, schema *openapi3.Schema) (interface{}, error) {
 	if ex, ok := getSchemaExample(schema); ok {
 		return ex, nil
 	}
@@ -133,7 +159,7 @@ func OpenAPIExample(schema *openapi3.Schema) (interface{}, error) {
 		example := []interface{}{}
 
 		if schema.Items != nil && schema.Items.Value != nil {
-			ex, err := OpenAPIExample(schema.Items.Value)
+			ex, err := OpenAPIExample(mode, schema.Items.Value)
 			if err != nil {
 				return nil, fmt.Errorf("can't get example for array item")
 			}
@@ -150,7 +176,11 @@ func OpenAPIExample(schema *openapi3.Schema) (interface{}, error) {
 		example := map[string]interface{}{}
 
 		for k, v := range schema.Properties {
-			ex, err := OpenAPIExample(v.Value)
+			if excludeFromMode(mode, v.Value) {
+				continue
+			}
+
+			ex, err := OpenAPIExample(mode, v.Value)
 			if err != nil {
 				return nil, fmt.Errorf("can't get example for '%s'", k)
 			}
@@ -160,12 +190,15 @@ func OpenAPIExample(schema *openapi3.Schema) (interface{}, error) {
 
 		if schema.AdditionalProperties != nil && schema.AdditionalProperties.Value != nil {
 			addl := schema.AdditionalProperties.Value
-			ex, err := OpenAPIExample(addl)
-			if err != nil {
-				return nil, fmt.Errorf("can't get example for additional properties")
-			}
 
-			example["additionalPropertyName"] = ex
+			if !excludeFromMode(mode, addl) {
+				ex, err := OpenAPIExample(mode, addl)
+				if err != nil {
+					return nil, fmt.Errorf("can't get example for additional properties")
+				}
+
+				example["additionalPropertyName"] = ex
+			}
 		}
 
 		return example, nil
