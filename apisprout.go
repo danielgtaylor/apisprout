@@ -109,7 +109,7 @@ func main() {
 	flags := root.PersistentFlags()
 
 	addParameter(flags, "port", "p", 8000, "HTTP port")
-	addParameter(flags, "validate-server", "", false, "Check hostname against configured servers")
+	addParameter(flags, "validate-server", "s", false, "Check scheme/hostname/basepath against configured servers")
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
 	addParameter(flags, "watch", "w", false, "Reload when input file changes")
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
@@ -215,6 +215,45 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 	return 0, "", nil, ErrNoExample
 }
 
+// addLocalServers will ensure that requests to localhost are always allowed
+// even if not specified in the OpenAPI document.
+func addLocalServers(swagger *openapi3.Swagger) error {
+	seen := make(map[string]bool)
+	for _, s := range swagger.Servers {
+		seen[s.URL] = true
+	}
+
+	lservers := make([]*openapi3.Server, 0, len(swagger.Servers))
+	for _, s := range swagger.Servers {
+		u, err := url.Parse(s.URL)
+		if err != nil {
+			return err
+		}
+
+		if u.Hostname() != "localhost" {
+			u.Scheme = "http"
+			u.Host = fmt.Sprintf("localhost:%d", viper.GetInt("port"))
+
+			ls := &openapi3.Server{
+				URL:         u.String(),
+				Description: s.Description,
+				Variables:   s.Variables,
+			}
+
+			if !seen[ls.URL] {
+				lservers = append(lservers, ls)
+				seen[ls.URL] = true
+			}
+		}
+	}
+
+	if len(lservers) != 0 {
+		swagger.Servers = append(swagger.Servers, lservers...)
+	}
+
+	return nil
+}
+
 // Load the OpenAPI document and create the router.
 func load(uri string, data []byte) (swagger *openapi3.Swagger, router *openapi3filter.Router, err error) {
 	defer func() {
@@ -247,6 +286,11 @@ func load(uri string, data []byte) (swagger *openapi3.Swagger, router *openapi3f
 		// Clear the server list so no validation happens. Note: this has a side
 		// effect of no longer parsing any server-declared parameters.
 		swagger.Servers = make([]*openapi3.Server, 0)
+	} else {
+		// Special-case localhost to always be allowed for local testing.
+		if err = addLocalServers(swagger); err != nil {
+			return
+		}
 	}
 
 	// Create a new router using the OpenAPI document's declared paths.
@@ -406,6 +450,26 @@ func server(cmd *cobra.Command, args []string) {
 		}
 
 		info := fmt.Sprintf("%s %v", req.Method, req.URL)
+
+		// Set up the request, handling potential proxy headers
+		req.URL.Host = req.Host
+		fHost := req.Header.Get("X-Forwarded-Host")
+		if fHost != "" {
+			req.URL.Host = fHost
+		}
+
+		req.URL.Scheme = "http"
+		if req.Header.Get("X-Forwarded-Proto") == "https" ||
+			req.Header.Get("X-Forwarded-Scheme") == "https" ||
+			strings.Contains(req.Header.Get("Forwarded"), "proto=https") {
+			req.URL.Scheme = "https"
+		}
+
+		if viper.GetBool("validate-server") {
+			// Use the scheme/host in the log message since we are validating it.
+			info = fmt.Sprintf("%s %v", req.Method, req.URL)
+		}
+
 		route, pathParams, err := router.FindRoute(req.Method, req.URL)
 		if err != nil {
 			log.Printf("ERROR: %s => %v", info, err)
@@ -501,6 +565,16 @@ func server(cmd *cobra.Command, args []string) {
 		w.Write(encoded)
 	})
 
-	fmt.Printf("🌱 Sprouting %s on port %d\n", swagger.Info.Title, viper.GetInt("port"))
+	fmt.Printf("🌱 Sprouting %s on port %d", swagger.Info.Title, viper.GetInt("port"))
+
+	if viper.GetBool("validate-server") && len(swagger.Servers) != 0 {
+		fmt.Printf(" with valid servers:\n")
+		for _, s := range swagger.Servers {
+			fmt.Println("• " + s.URL)
+		}
+	} else {
+		fmt.Printf("\n")
+	}
+
 	http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil)
 }

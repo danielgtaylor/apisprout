@@ -10,7 +10,9 @@ A simple, quick, cross-platform API mock server that returns examples specified 
   - Example: `Accept: application/*`
 - Prefer header to select response to test specific cases
   - Example: `Prefer: status=409`
-- Server name validation (enabled with `--validate-server`)
+- Server validation (enabled with `--validate-server`)
+  - Validates scheme, hostname/port, and base path
+  - Supports `localhost` out of the box
 - Request parameter & body validation (enabled with `--validate-request`)
 - Configuration via:
   - Files (`/etc/apisprout/config.json|yaml`)
@@ -39,7 +41,7 @@ docker run -p 8000:8000 danielgtaylor/apisprout http://example.com/my-api.yaml
 Configuration can be passed via environment variables, e.g. setting `SPROUT_VALIDATE_REQUEST=1`, or by passing commandline flags. It is also possible to use a local API description file via [Docker Volumes](https://docs.docker.com/storage/volumes/):
 
 ```
-# Remeber to put the full path to local archive YAML in -v
+# Remember to put the full path to local archive YAML in -v
 docker run -p 8000:8000 -v $FULLPATH/localfile.yaml:/api.yaml danielgtaylor/apisprout /api.yaml
 ```
 
