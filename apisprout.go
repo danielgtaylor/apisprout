@@ -113,6 +113,7 @@ func main() {
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
 	addParameter(flags, "watch", "w", false, "Reload when input file changes")
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
+	addParameter(flags, "header", "H", "", "Add custom header")
 
 	// Run the app!
 	root.Execute()
@@ -313,7 +314,19 @@ func server(cmd *cobra.Command, args []string) {
 	// Load either from an HTTP URL or from a local file depending on the passed
 	// in value.
 	if strings.HasPrefix(uri, "http") {
-		resp, err := http.Get(uri)
+		req, err := http.NewRequest("GET", uri, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if customHeader := viper.GetString("header"); customHeader != "" {
+			header := strings.Split(customHeader, ": ")
+			if len(header) != 2 {
+				log.Fatal("Header format is invalid.")
+			}
+			req.Header.Add(header[0], header[1])
+		}
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Fatal(err)
 		}
