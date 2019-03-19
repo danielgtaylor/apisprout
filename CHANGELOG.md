@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+- Add `--add-server` to add a custom server when using `--validate-server`.
+  This allows quickly adding a custom domain or base path that will properly
+  validate.
 - Add `--header` (short `-H`) option to specify a custom header when fetching
   the API document. This allows you to pass custom auth info.
 - Add `readOnly` and `writeOnly` support to the example generator.

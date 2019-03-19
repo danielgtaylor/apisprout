@@ -114,6 +114,7 @@ func main() {
 	addParameter(flags, "watch", "w", false, "Reload when input file changes")
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
 	addParameter(flags, "header", "H", "", "Add a custom header when fetching API")
+	addParameter(flags, "add-server", "", "", "Add a new valid server URL, use with --validate-server")
 
 	// Run the app!
 	root.Execute()
@@ -291,6 +292,14 @@ func load(uri string, data []byte) (swagger *openapi3.Swagger, router *openapi3f
 		// Special-case localhost to always be allowed for local testing.
 		if err = addLocalServers(swagger); err != nil {
 			return
+		}
+
+		if cs := viper.GetString("add-server"); cs != "" {
+			swagger.Servers = append(swagger.Servers, &openapi3.Server{
+				URL:         cs,
+				Description: "Custom server from command line param",
+				Variables:   make(map[string]*openapi3.ServerVariable),
+			})
 		}
 	}
 
