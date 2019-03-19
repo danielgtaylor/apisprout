@@ -102,7 +102,7 @@ func main() {
 		Version: GitSummary,
 		Args:    cobra.MinimumNArgs(1),
 		Run:     server,
-		Example: fmt.Sprintf("  %s openapi.yaml", cmd),
+		Example: fmt.Sprintf("  # Basic usage\n  %s openapi.yaml\n\n  # Validate server name and use base path\n  %s --validate-server openapi.yaml\n\n  # Fetch API via HTTP with custom auth header\n  %s -H 'Authorization: abc123' http://example.com/openapi.yaml", cmd, cmd, cmd),
 	}
 
 	// Set up global options.
@@ -113,7 +113,7 @@ func main() {
 	addParameter(flags, "validate-request", "", false, "Check request data structure")
 	addParameter(flags, "watch", "w", false, "Reload when input file changes")
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
-	addParameter(flags, "header", "H", "", "Add custom header")
+	addParameter(flags, "header", "H", "", "Add a custom header when fetching API")
 
 	// Run the app!
 	root.Execute()
@@ -319,11 +319,11 @@ func server(cmd *cobra.Command, args []string) {
 			log.Fatal(err)
 		}
 		if customHeader := viper.GetString("header"); customHeader != "" {
-			header := strings.Split(customHeader, ": ")
+			header := strings.Split(customHeader, ":")
 			if len(header) != 2 {
 				log.Fatal("Header format is invalid.")
 			}
-			req.Header.Add(header[0], header[1])
+			req.Header.Add(strings.TrimSpace(header[0]), strings.TrimSpace(header[1]))
 		}
 		client := &http.Client{}
 		resp, err := client.Do(req)
