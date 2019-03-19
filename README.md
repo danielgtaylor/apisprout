@@ -1,5 +1,7 @@
 <img src="https://user-images.githubusercontent.com/106826/43119494-78be9224-8ecb-11e8-9d1a-9fc6f3014b91.png" width="300" alt="API Sprout"/>
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/danielgtaylor/apisprout)](https://goreportcard.com/report/github.com/danielgtaylor/apisprout) [![Build Status](https://travis-ci.org/danielgtaylor/apisprout.svg?branch=master)](https://travis-ci.org/danielgtaylor/apisprout) [![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/danielgtaylor/apisprout.svg)](https://github.com/danielgtaylor/apisprout/releases) [![Docker Pulls](https://img.shields.io/docker/pulls/danielgtaylor/apisprout.svg)](https://hub.docker.com/r/danielgtaylor/apisprout/)
+
 A simple, quick, cross-platform API mock server that returns examples specified in an API description document. Features include:
 
 - OpenAPI 3.x support
@@ -24,6 +26,9 @@ Usage is simple:
 ```sh
 # Load from a local file
 apisprout my-api.yaml
+
+# Validate server name and use base path
+apisprout --validate-server my-api.yaml
 
 # Load from a URL
 apisprout https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/examples/v3.0/api-with-examples.yaml
@@ -74,6 +79,6 @@ The following describes the steps to make a new release of API Sprout.
 
 ## License
 
-Copyright &copy; 2018 Daniel G. Taylor
+Copyright &copy; 2018-2019 Daniel G. Taylor
 
 http://dgt.mit-license.org/
