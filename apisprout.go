@@ -115,6 +115,7 @@ func main() {
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
 	addParameter(flags, "header", "H", "", "Add a custom header when fetching API")
 	addParameter(flags, "add-server", "", "", "Add a new valid server URL, use with --validate-server")
+	addParameter(flags, "path-prefix", "", "", "Add prefix to the path such as mock/")
 
 	// Run the app!
 	root.Execute()
@@ -438,7 +439,7 @@ func server(cmd *cobra.Command, args []string) {
 
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
-	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+	http.HandleFunc("/" + viper.GetString("path-prefix"), func(w http.ResponseWriter, req *http.Request) {
 		if !viper.GetBool("disable-cors") {
 			corsOrigin := req.Header.Get("Origin")
 			if corsOrigin == "" {
@@ -490,6 +491,10 @@ func server(cmd *cobra.Command, args []string) {
 		if viper.GetBool("validate-server") {
 			// Use the scheme/host in the log message since we are validating it.
 			info = fmt.Sprintf("%s %v", req.Method, req.URL)
+		}
+
+		if viper.GetString("path-prefix") != "" {
+			req.URL.Path = strings.TrimPrefix(req.URL.Path, "/"+viper.GetString("path-prefix"))
 		}
 
 		route, pathParams, err := router.FindRoute(req.Method, req.URL)
