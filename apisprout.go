@@ -163,8 +163,10 @@ func getTypedExample(mt *openapi3.MediaType) (interface{}, error) {
 }
 
 // getExample tries to return an example for a given operation.
-func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Operation) (int, string, interface{}, error) {
+func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Operation) (int, string, map[string]*openapi3.HeaderRef, interface{}, error) {
 	var responses []string
+	var blankHeaders = make(map[string]*openapi3.HeaderRef)
+
 	if prefer == "" {
 		// First, make a list of responses ordered by successful (200-299 status code)
 		// before other types.
@@ -180,7 +182,7 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 		responses = append(success, other...)
 	} else {
 		if op.Responses[prefer] == nil {
-			return 0, "", nil, ErrNoExample
+			return 0, "", blankHeaders, nil, ErrNoExample
 		}
 		responses = []string{prefer}
 	}
@@ -196,7 +198,7 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 
 		if response.Value.Content == nil {
 			// This is a valid response but has no body defined.
-			return status, "", "", nil
+			return status, "", blankHeaders, "", nil
 		}
 
 		for mt, content := range response.Value.Content {
@@ -207,14 +209,14 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 
 			example, err := getTypedExample(content)
 			if err == nil {
-				return status, mt, example, nil
+				return status, mt, response.Value.Headers, example, nil
 			}
 
 			fmt.Printf("Error getting example: %v\n", err)
 		}
 	}
 
-	return 0, "", nil, ErrNoExample
+	return 0, "", blankHeaders, nil, ErrNoExample
 }
 
 // addLocalServers will ensure that requests to localhost are always allowed
@@ -540,7 +542,7 @@ func server(cmd *cobra.Command, args []string) {
 			prefer = ""
 		}
 
-		status, mediatype, example, err := getExample(negotiator, prefer, route.Operation)
+		status, mediatype, headers, example, err := getExample(negotiator, prefer, route.Operation)
 		if err != nil {
 			log.Printf("%s => Missing example", info)
 			w.WriteHeader(http.StatusTeapot)
@@ -579,8 +581,26 @@ func server(cmd *cobra.Command, args []string) {
 			}
 		}
 
+		for name, header := range headers {
+			if header.Value != nil {
+				example := name
+
+				if header.Value.Schema != nil && header.Value.Schema.Value != nil {
+					if v, err := OpenAPIExample(ModeResponse, header.Value.Schema.Value); err == nil {
+						if vs, ok := v.(string); ok {
+							example = vs
+						} else {
+							fmt.Printf("Could not convert example value '%v' to string", v)
+						}
+					}
+				}
+
+				w.Header().Set(name, example)
+			}
+		}
+
 		if mediatype != "" {
-			w.Header().Add("Content-Type", mediatype)
+			w.Header().Set("Content-Type", mediatype)
 		}
 
 		w.WriteHeader(status)
