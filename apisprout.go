@@ -632,4 +632,7 @@ func server(cmd *cobra.Command, args []string) {
 	} else {
 		err = http.ListenAndServe(port, nil)
 	}
+	if err != nil {
+		log.Fatal(err)
+	}
 }
