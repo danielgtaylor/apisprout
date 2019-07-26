@@ -100,6 +100,35 @@ func OpenAPIExample(mode Mode, schema *openapi3.Schema) (interface{}, error) {
 		return ex, nil
 	}
 
+	// Handle combining keywords
+	if len(schema.OneOf) > 0 {
+		return OpenAPIExample(mode, schema.OneOf[0].Value)
+	}
+	if len(schema.AnyOf) > 0 {
+		return OpenAPIExample(mode, schema.AnyOf[0].Value)
+	}
+	if len(schema.AllOf) > 0 {
+		example := map[string]interface{}{}
+
+		for _, allOf := range schema.AllOf {
+			candidate, err := OpenAPIExample(mode, allOf.Value)
+			if err != nil {
+				return nil, err
+			}
+
+			value, ok := candidate.(map[string]interface{})
+			if !ok {
+				return nil, ErrNoExample
+			}
+
+			for k, v := range value {
+				example[k] = v
+			}
+		}
+
+		return example, nil
+	}
+
 	switch {
 	case schema.Type == "boolean":
 		return true, nil
