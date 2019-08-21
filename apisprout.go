@@ -180,11 +180,12 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 			other = append(other, s)
 		}
 		responses = append(success, other...)
-	} else {
-		if op.Responses[prefer] == nil {
-			return 0, "", blankHeaders, nil, ErrNoExample
-		}
+	} else if op.Responses[prefer] != nil {
 		responses = []string{prefer}
+	} else if op.Responses["default"] != nil {
+		responses = []string{"default"}
+	} else {
+		return 0, "", blankHeaders, nil, ErrNoExample
 	}
 
 	// Now try to find the first example we can and return it!
@@ -192,7 +193,12 @@ func getExample(negotiator *ContentNegotiator, prefer string, op *openapi3.Opera
 		response := op.Responses[s]
 		status, err := strconv.Atoi(s)
 		if err != nil {
-			// Treat default and other named statuses as 200.
+			// If we are using the default with prefer, we can use its status
+			// code:
+			status, err = strconv.Atoi(prefer)
+		}
+		if err != nil {
+			// Otherwise, treat default and other named statuses as 200.
 			status = http.StatusOK
 		}
 
