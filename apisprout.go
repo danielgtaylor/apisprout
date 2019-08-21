@@ -35,6 +35,9 @@ var (
 	// ErrNoExample is sent when no example was found for an operation.
 	ErrNoExample = errors.New("No example found")
 
+	// ErrRecursive is when a schema is impossible to represent because it infinitely recurses.
+	ErrRecursive = errors.New("Recursive schema")
+
 	// ErrCannotMarshal is set when an example cannot be marshalled.
 	ErrCannotMarshal = errors.New("Cannot marshal example")
 
