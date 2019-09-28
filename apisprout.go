@@ -441,6 +441,12 @@ func server(cmd *cobra.Command, args []string) {
 		})
 	}
 
+	// Add a health check route which returns 200
+	http.HandleFunc("/__health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		log.Printf("Health check")
+	})
+
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {

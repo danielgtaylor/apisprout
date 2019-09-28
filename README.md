@@ -60,6 +60,16 @@ Alternatively, you can use `go get`:
 go get github.com/danielgtaylor/apisprout
 ```
 
+## Extra Features
+
+### Remote Reload
+
+If your API spec is loaded from a remote URL, you can live-reload it by hitting the `/__reload` endpoint.
+
+### Health Check
+
+A simple endpoint which returns status code `200` is available at `/__health`. This endpoint successfully returns `200` even if `--validate-server` is turned on, and the endpoint is being accessed from a non-validated host.
+
 ## Contributing
 
 Contributions are very welcome. Please open a tracking issue or pull request and we can work to get things merged in.
