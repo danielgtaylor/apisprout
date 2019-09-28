@@ -115,6 +115,9 @@ func main() {
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
 	addParameter(flags, "header", "H", "", "Add a custom header when fetching API")
 	addParameter(flags, "add-server", "", "", "Add a new valid server URL, use with --validate-server")
+	addParameter(flags, "https", "", false, "Use HTTPS instead of HTTP")
+	addParameter(flags, "public-key", "", "", "Public key for HTTPS, use with --https")
+	addParameter(flags, "private-key", "", "", "Private key for HTTPS, use with --https")
 
 	// Run the app!
 	root.Execute()
@@ -607,7 +610,11 @@ func server(cmd *cobra.Command, args []string) {
 		w.Write(encoded)
 	})
 
-	fmt.Printf("🌱 Sprouting %s on port %d", swagger.Info.Title, viper.GetInt("port"))
+	format := "🌱 Sprouting %s on port %d"
+	if viper.GetBool("https") {
+		format = "🌱 Securely sprouting %s on port %d"
+	}
+	fmt.Printf(format, swagger.Info.Title, viper.GetInt("port"))
 
 	if viper.GetBool("validate-server") && len(swagger.Servers) != 0 {
 		fmt.Printf(" with valid servers:\n")
@@ -618,5 +625,14 @@ func server(cmd *cobra.Command, args []string) {
 		fmt.Printf("\n")
 	}
 
-	http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil)
+	port := fmt.Sprintf(":%d", viper.GetInt("port"))
+	if viper.GetBool("https") {
+		err = http.ListenAndServeTLS(port, viper.GetString("public-key"),
+			viper.GetString("private-key"), nil)
+	} else {
+		err = http.ListenAndServe(port, nil)
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
 }
