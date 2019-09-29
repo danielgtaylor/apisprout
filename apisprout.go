@@ -211,7 +211,7 @@ func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *ope
 		if err != nil {
 			// If we are using the default with prefer, we can use its status
 			// code:
-			status, err = strconv.Atoi(prefer)
+			status, err = strconv.Atoi(prefer["status"])
 		}
 		if err != nil {
 			// Otherwise, treat default and other named statuses as 200.
