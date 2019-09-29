@@ -15,6 +15,7 @@ A simple, quick, cross-platform API mock server that returns examples specified 
 - Server validation (enabled with `--validate-server`)
   - Validates scheme, hostname/port, and base path
   - Supports `localhost` out of the box
+  - Use the `--add-server` flag, in conjunction with `--validate-server`, to dynamically include more servers in the validation logic
 - Request parameter & body validation (enabled with `--validate-request`)
 - Configuration via:
   - Files (`/etc/apisprout/config.json|yaml`)
@@ -29,6 +30,9 @@ apisprout my-api.yaml
 
 # Validate server name and use base path
 apisprout --validate-server my-api.yaml
+
+# Dynamically Include a new server / path in the validation
+apisprout --add-server http://localhost:8080/mock --validate-server my-api.yaml
 
 # Load from a URL
 apisprout https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/examples/v3.0/api-with-examples.yaml
@@ -59,6 +63,16 @@ Alternatively, you can use `go get`:
 ```sh
 go get github.com/danielgtaylor/apisprout
 ```
+
+## Extra Features
+
+### Remote Reload
+
+If your API spec is loaded from a remote URL, you can live-reload it by hitting the `/__reload` endpoint.
+
+### Health Check
+
+A simple endpoint which returns status code `200` is available at `/__health`. This endpoint successfully returns `200` even if `--validate-server` is turned on, and the endpoint is being accessed from a non-validated host.
 
 ## Contributing
 

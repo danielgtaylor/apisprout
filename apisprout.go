@@ -116,6 +116,9 @@ func main() {
 	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
 	addParameter(flags, "header", "H", "", "Add a custom header when fetching API")
 	addParameter(flags, "add-server", "", "", "Add a new valid server URL, use with --validate-server")
+	addParameter(flags, "https", "", false, "Use HTTPS instead of HTTP")
+	addParameter(flags, "public-key", "", "", "Public key for HTTPS, use with --https")
+	addParameter(flags, "private-key", "", "", "Private key for HTTPS, use with --https")
 
 	// Run the app!
 	root.Execute()
@@ -193,11 +196,12 @@ func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *ope
 			other = append(other, s)
 		}
 		responses = append(success, other...)
-	} else {
-		if op.Responses[prefer["status"]] == nil {
-			return 0, "", blankHeaders, nil, ErrNoExample
-		}
+	} else if op.Responses[prefer["status"]] != nil {
 		responses = []string{prefer["status"]}
+	} else if op.Responses["default"] != nil {
+		responses = []string{"default"}
+	} else {
+		return 0, "", blankHeaders, nil, ErrNoExample
 	}
 
 	// Now try to find the first example we can and return it!
@@ -205,7 +209,12 @@ func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *ope
 		response := op.Responses[s]
 		status, err := strconv.Atoi(s)
 		if err != nil {
-			// Treat default and other named statuses as 200.
+			// If we are using the default with prefer, we can use its status
+			// code:
+			status, err = strconv.Atoi(prefer)
+		}
+		if err != nil {
+			// Otherwise, treat default and other named statuses as 200.
 			status = http.StatusOK
 		}
 
@@ -511,6 +520,12 @@ func server(cmd *cobra.Command, args []string) {
 		})
 	}
 
+	// Add a health check route which returns 200
+	http.HandleFunc("/__health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		log.Printf("Health check")
+	})
+
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
@@ -675,7 +690,11 @@ func server(cmd *cobra.Command, args []string) {
 		w.Write(encoded)
 	})
 
-	fmt.Printf("🌱 Sprouting %s on port %d", swagger.Info.Title, viper.GetInt("port"))
+	format := "🌱 Sprouting %s on port %d"
+	if viper.GetBool("https") {
+		format = "🌱 Securely sprouting %s on port %d"
+	}
+	fmt.Printf(format, swagger.Info.Title, viper.GetInt("port"))
 
 	if viper.GetBool("validate-server") && len(swagger.Servers) != 0 {
 		fmt.Printf(" with valid servers:\n")
@@ -686,5 +705,14 @@ func server(cmd *cobra.Command, args []string) {
 		fmt.Printf("\n")
 	}
 
-	http.ListenAndServe(fmt.Sprintf(":%d", viper.GetInt("port")), nil)
+	port := fmt.Sprintf(":%d", viper.GetInt("port"))
+	if viper.GetBool("https") {
+		err = http.ListenAndServeTLS(port, viper.GetString("public-key"),
+			viper.GetString("private-key"), nil)
+	} else {
+		err = http.ListenAndServe(port, nil)
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
 }

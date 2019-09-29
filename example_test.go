@@ -417,6 +417,67 @@ var schemaTests = []struct {
 		}`,
 		`{"normal": "string", "readOnly": "string"}`,
 	},
+	// ----- Combination keywords -----
+	{
+		"Combine with allOf",
+		`{
+			"allOf": [
+				{
+					"type": "object",
+					"properties": {
+						"foo": {"type": "string"}
+					}
+				},
+				{
+					"type": "object",
+					"properties": {
+						"bar": {"type": "boolean"}
+					}
+				}
+			]
+		}`,
+		`{"foo": "string", "bar": true}`,
+	},
+	{
+		"Combine with anyOf",
+		`{
+			"anyOf": [
+				{
+					"type": "object",
+					"properties": {
+						"foo": {"type": "string"}
+					}
+				},
+				{
+					"type": "object",
+					"properties": {
+						"bar": {"type": "boolean"}
+					}
+				}
+			]
+		}`,
+		`{"foo": "string"}`,
+	},
+	{
+		"Combine with oneOf",
+		`{
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"foo": {"type": "string"}
+					}
+				},
+				{
+					"type": "object",
+					"properties": {
+						"bar": {"type": "boolean"}
+					}
+				}
+			]
+		}`,
+		`{"foo": "string"}`,
+	},
 }
 
 func TestGenExample(t *testing.T) {
