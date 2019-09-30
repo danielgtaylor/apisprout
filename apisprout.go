@@ -590,6 +590,7 @@ func server(cmd *cobra.Command, args []string) {
 
 	var err error
 	var data []byte
+	dataType := strings.Trim(strings.ToLower(filepath.Ext(uri)), ".")
 
 	// Load either from an HTTP URL or from a local file depending on the passed
 	// in value.
@@ -713,6 +714,21 @@ func server(cmd *cobra.Command, args []string) {
 	http.HandleFunc("/__health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		log.Printf("Health check")
+	})
+
+	// Another custom handler to return the exact swagger document given to us
+	http.HandleFunc("/__schema", func(w http.ResponseWriter, req *http.Request) {
+		if !viper.GetBool("disable-cors") {
+			corsOrigin := req.Header.Get("Origin")
+			if corsOrigin == "" {
+				corsOrigin = "*"
+			}
+			w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
+		}
+
+		w.Header().Set("Content-Type", fmt.Sprintf("application/%v; charset=utf-8", dataType))
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, string(data))
 	})
 
 	// Register our custom HTTP handler that will use the router to find
