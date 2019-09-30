@@ -1,0 +1,10 @@
+components:
+  schemas:
+    Test:
+      type: object
+      properties:
+        something:
+          type: string
+          example: Hello
+        test:
+          $ref: '#/components/schemas/Test'

@@ -1,0 +1,18 @@
+components:
+  schemas:
+    Ref:
+      type: object
+      properties:
+        spud:
+          type: string
+          example: "potato"
+    Test:
+      type: object
+      required:
+      - ref_a
+      - ref_b
+      properties:
+        ref_a:
+          $ref: '#/components/schemas/Ref'
+        ref_b:
+          $ref: '#/components/schemas/Ref'

@@ -1,0 +1,9 @@
+components:
+  schemas:
+    Test:
+      type: object
+      required:
+      - test
+      properties:
+        test:
+          $ref: '#/components/schemas/Test'

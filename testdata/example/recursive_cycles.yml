@@ -1,0 +1,16 @@
+components:
+  schemas:
+    Front:
+      type: object
+      required:
+      - back
+      properties:
+        back:
+          $ref: '#/components/schemas/Back'
+    Back:
+      type: object
+      required:
+      - front
+      properties:
+        front:
+          $ref: '#/components/schemas/Front'

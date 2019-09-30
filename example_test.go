@@ -2,12 +2,27 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path"
 	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func exampleFixture(t *testing.T, name string) string {
+	f, err := os.Open(path.Join("testdata/example", name))
+	require.NoError(t, err)
+	defer f.Close()
+
+	b, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+
+	return string(b)
+}
 
 var schemaTests = []struct {
 	name string
@@ -501,6 +516,60 @@ func TestGenExample(t *testing.T) {
 				var expected interface{}
 				json.Unmarshal([]byte(tt.out), &expected)
 				assert.EqualValues(t, expected, example)
+			}
+		})
+	}
+}
+
+func TestRecursiveSchema(t *testing.T) {
+	loader := openapi3.NewSwaggerLoader()
+
+	tests := []struct {
+		name   string
+		in     string
+		schema string
+		out    string
+	}{
+		{
+			"Valid recursive schema",
+			exampleFixture(t, "recursive_ok.yml"),
+			"Test",
+			`{"something": "Hello"}`,
+		},
+		{
+			"Infinitely recursive schema",
+			exampleFixture(t, "recursive_infinite.yml"),
+			"Test",
+			``,
+		},
+		{
+			"Seeing the same schema twice non-recursively",
+			exampleFixture(t, "recursive_seen_twice.yml"),
+			"Test",
+			`{"ref_a": {"spud": "potato"}, "ref_b": {"spud": "potato"}}`,
+		},
+		{
+			"Cyclical dependencies",
+			exampleFixture(t, "recursive_cycles.yml"),
+			"Front",
+			``,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			swagger, err := loader.LoadSwaggerFromData([]byte(test.in))
+			require.NoError(t, err)
+
+			ex, err := OpenAPIExample(ModeResponse, swagger.Components.Schemas[test.schema].Value)
+			if test.out == "" {
+				assert.Error(t, err)
+				assert.Nil(t, ex)
+			} else {
+				assert.Nil(t, err)
+				// Expected to match the output.
+				var expected interface{}
+				json.Unmarshal([]byte(test.out), &expected)
+				assert.EqualValues(t, expected, ex)
 			}
 		})
 	}
