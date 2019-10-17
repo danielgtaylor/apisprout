@@ -517,8 +517,8 @@ func server(cmd *cobra.Command, args []string) {
 						if sec.Type == "http" {
 							// Prefixes for each scheme.
 							prefixes := map[string]string{
-								"bearer": "Bearer ",
-								"basic":  "Basic ",
+								"bearer": "BEARER ",
+								"basic":  "BASIC ",
 							}
 							if prefix, ok := prefixes[sec.Scheme]; ok {
 								auth := req.Header.Get("Authorization")
@@ -526,8 +526,8 @@ func server(cmd *cobra.Command, args []string) {
 								if len(auth) == 0 {
 									return ErrMissingAuth
 								}
-								// If the auth doesn't have a value or doesn't start with the prefix
-								if len(auth) <= len(prefix) || !strings.HasPrefix(auth, prefix) {
+								// If the auth doesn't have a value or doesn't start with the case insensitive prefix
+								if len(auth) <= len(prefix) || !strings.HasPrefix(strings.ToUpper(auth), prefix) {
 									return ErrInvalidAuth
 								}
 							}
