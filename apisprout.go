@@ -44,6 +44,10 @@ var (
 	// ErrMissingAuth is set when no authorization header or key is present but
 	// one is required by the API description.
 	ErrMissingAuth = errors.New("Missing auth")
+
+	// ErrInvalidAuth is set when the authorization scheme doesn't correspond
+	// to the one required by the API description.
+	ErrInvalidAuth = errors.New("Invalid auth")
 )
 
 var (
@@ -488,9 +492,22 @@ var handler = func(rr *RefreshableRouter) http.Handler {
 					AuthenticationFunc: func(c context.Context, input *openapi3filter.AuthenticationInput) error {
 						// TODO: support more schemes
 						sec := input.SecurityScheme
-						if sec.Type == "http" && sec.Scheme == "bearer" {
-							if req.Header.Get("Authorization") == "" {
-								return ErrMissingAuth
+						if sec.Type == "http" {
+							// Prefixes for each scheme.
+							prefixes := map[string]string{
+								"bearer": "BEARER ",
+								"basic":  "BASIC ",
+							}
+							if prefix, ok := prefixes[sec.Scheme]; ok {
+								auth := req.Header.Get("Authorization")
+								// If the auth is missing
+								if len(auth) == 0 {
+									return ErrMissingAuth
+								}
+								// If the auth doesn't have a value or doesn't start with the case insensitive prefix
+								if len(auth) <= len(prefix) || !strings.HasPrefix(strings.ToUpper(auth), prefix) {
+									return ErrInvalidAuth
+								}
 							}
 						}
 						return nil
