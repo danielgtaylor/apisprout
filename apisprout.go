@@ -714,27 +714,25 @@ func server(cmd *cobra.Command, args []string) {
 
 	rr.Set(router)
 
-	if strings.HasPrefix(uri, "http") {
-		http.HandleFunc("/__reload", func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("🌙 Reloading %s\n", uri)
-			data, err = loadSwaggerFromUri(uri)
-			if err == nil {
-				if s, r, err := load(uri, data); err == nil {
-					swagger = s
-					rr.Set(r)
-				}
+	http.HandleFunc("/__reload", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("🌙 Reloading %s\n", uri)
+		data, err = loadSwaggerFromUri(uri)
+		if err == nil {
+			if s, r, err := load(uri, data); err == nil {
+				swagger = s
+				rr.Set(r)
 			}
-			if err == nil {
-				log.Printf("Reloaded from %s", uri)
-				w.WriteHeader(200)
-				w.Write([]byte("reloaded"))
-			} else {
-				log.Printf("ERROR: %s", err)
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte("error while reloading"))
-			}
-		})
-	}
+		}
+		if err == nil {
+			log.Printf("Reloaded from %s", uri)
+			w.WriteHeader(200)
+			w.Write([]byte("reloaded"))
+		} else {
+			log.Printf("ERROR: %s", err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("error while reloading"))
+		}
+	})
 
 	// Add a health check route which returns 200
 	http.HandleFunc("/__health", func(w http.ResponseWriter, r *http.Request) {
