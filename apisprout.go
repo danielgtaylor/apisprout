@@ -683,9 +683,9 @@ func server(cmd *cobra.Command, args []string) {
 					}
 					if event.Op&fsnotify.Write == fsnotify.Write {
 						fmt.Printf("🌙 Reloading %s\n", uri)
-						data, err = ioutil.ReadFile(uri)
+						data, err = loadSwaggerFromUri(uri)
 						if err != nil {
-							log.Fatal(err)
+							log.Printf("ERROR: %s", err)
 						}
 
 						if s, r, err := load(uri, data); err == nil {
