@@ -686,20 +686,20 @@ func server(cmd *cobra.Command, args []string) {
 						data, err = loadSwaggerFromUri(uri)
 						if err != nil {
 							log.Printf("ERROR: %s", err)
-						}
-
-						if s, r, err := load(uri, data); err == nil {
-							swagger = s
-							rr.Set(r)
 						} else {
-							log.Printf("ERROR: Unable to load OpenAPI document: %s", err)
+							if s, r, err := load(uri, data); err == nil {
+								swagger = s
+								rr.Set(r)
+							} else {
+								log.Printf("ERROR: Unable to load OpenAPI document: %s", err)
+							}
 						}
 					}
 				case err, ok := <-watcher.Errors:
 					if !ok {
 						return
 					}
-					fmt.Println("error:", err)
+					log.Printf("ERROR: %s", err)
 				}
 			}
 		}()
