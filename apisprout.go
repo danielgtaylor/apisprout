@@ -51,8 +51,8 @@ var (
 )
 
 var (
-	marshalJSONMatcher = regexp.MustCompile(`^application/(vnd\..+\+)?json$`)
-	marshalYAMLMatcher = regexp.MustCompile(`^(application|text)/(x-|vnd\..+\+)?yaml$`)
+	marshalJSONMatcher = regexp.MustCompile(`^application/(vnd\..+\+)?json(; ?charset=.+)?$`)
+	marshalYAMLMatcher = regexp.MustCompile(`^(application|text)/(x-|vnd\..+\+)?yaml(; ?charset=.+)?$`)
 )
 
 type RefreshableRouter struct {
