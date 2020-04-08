@@ -186,7 +186,7 @@ func getTypedExampleValue(rr *RefreshableRouter, example *openapi3.ExampleRef) (
 		} else if !strings.HasPrefix(rr.uri, "http") {
 			return ioutil.ReadFile(filepath.Join(filepath.Dir(rr.uri), example.Value.ExternalValue))
 		}
-		return nil, fmt.Errorf("external value %q not supported for uri %d", example.Value.ExternalValue, rr.uri)
+		return nil, fmt.Errorf("external value %q not supported for uri %q", example.Value.ExternalValue, rr.uri)
 	}
 
 	return example.Value.Value, nil
