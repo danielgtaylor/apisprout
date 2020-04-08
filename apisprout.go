@@ -168,6 +168,30 @@ func addParameter(flags *pflag.FlagSet, name, short string, def interface{}, des
 	viper.BindPFlag(name, flags.Lookup(name))
 }
 
+func getTypedExampleValue(rr *RefreshableRouter, example *openapi3.ExampleRef) (interface{}, error) {
+
+	if example == nil || example.Value == nil {
+		return nil, fmt.Errorf("nil example")
+	}
+
+	if example.Value.ExternalValue != "" {
+		if strings.HasPrefix(example.Value.ExternalValue, "http") {
+			resp, err := http.Get(example.Value.ExternalValue)
+			if err != nil {
+				return nil, err
+			}
+			//noinspection GoUnhandledErrorResult
+			defer resp.Body.Close()
+			return ioutil.ReadAll(resp.Body)
+		} else if !strings.HasPrefix(rr.uri, "http") {
+			return ioutil.ReadFile(filepath.Join(filepath.Dir(rr.uri), example.Value.ExternalValue))
+		}
+		return nil, fmt.Errorf("external value %q not supported for uri %d", example.Value.ExternalValue, rr.uri)
+	}
+
+	return example.Value.Value, nil
+}
+
 // getTypedExample will return an example from a given media type, if such an
 // example exists. If multiple examples are given, then one is selected at
 // random unless an "example" item exists in the Prefer header
@@ -182,7 +206,7 @@ func getTypedExample(rr *RefreshableRouter, mt *openapi3.MediaType, prefer map[s
 		if mapContainsKey(prefer, "example") {
 			preferredExample = prefer["example"]
 			if _, ok := mt.Examples[preferredExample]; ok {
-				return mt.Examples[preferredExample].Value.Value, nil
+				return getTypedExampleValue(rr, mt.Examples[preferredExample])
 			}
 		}
 
@@ -194,22 +218,7 @@ func getTypedExample(rr *RefreshableRouter, mt *openapi3.MediaType, prefer map[s
 
 		if len(keys) > 0 {
 			selected := keys[rand.Intn(len(keys))]
-			example := mt.Examples[selected].Value
-			if example.ExternalValue != "" {
-				if strings.HasPrefix(example.ExternalValue, "http") {
-					resp, err := http.Get(example.ExternalValue)
-					if err != nil {
-						return nil, err
-					}
-					//noinspection GoUnhandledErrorResult
-					defer resp.Body.Close()
-					return ioutil.ReadAll(resp.Body)
-				} else if !strings.HasPrefix(rr.uri, "http") {
-					return ioutil.ReadFile(filepath.Join(filepath.Dir(rr.uri), example.ExternalValue))
-				}
-				return nil, fmt.Errorf("external value %q not supported", example.ExternalValue)
-			}
-			return example.Value, nil
+			return getTypedExampleValue(rr, mt.Examples[selected])
 		}
 	}
 
