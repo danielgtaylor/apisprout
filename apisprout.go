@@ -57,6 +57,7 @@ var (
 
 type RefreshableRouter struct {
 	router *openapi3filter.Router
+	uri    string
 }
 
 func (rr *RefreshableRouter) Set(router *openapi3filter.Router) {
@@ -170,7 +171,7 @@ func addParameter(flags *pflag.FlagSet, name, short string, def interface{}, des
 // getTypedExample will return an example from a given media type, if such an
 // example exists. If multiple examples are given, then one is selected at
 // random unless an "example" item exists in the Prefer header
-func getTypedExample(mt *openapi3.MediaType, prefer map[string]string) (interface{}, error) {
+func getTypedExample(rr *RefreshableRouter, mt *openapi3.MediaType, prefer map[string]string) (interface{}, error) {
 	if mt.Example != nil {
 		return mt.Example, nil
 	}
@@ -193,7 +194,22 @@ func getTypedExample(mt *openapi3.MediaType, prefer map[string]string) (interfac
 
 		if len(keys) > 0 {
 			selected := keys[rand.Intn(len(keys))]
-			return mt.Examples[selected].Value.Value, nil
+			example := mt.Examples[selected].Value
+			if example.ExternalValue != "" {
+				if strings.HasPrefix(example.ExternalValue, "http") {
+					resp, err := http.Get(example.ExternalValue)
+					if err != nil {
+						return nil, err
+					}
+					//noinspection GoUnhandledErrorResult
+					defer resp.Body.Close()
+					return ioutil.ReadAll(resp.Body)
+				} else if !strings.HasPrefix(rr.uri, "http") {
+					return ioutil.ReadFile(filepath.Join(filepath.Dir(rr.uri), example.ExternalValue))
+				}
+				return nil, fmt.Errorf("external value %q not supported", example.ExternalValue)
+			}
+			return example.Value, nil
 		}
 	}
 
@@ -207,7 +223,7 @@ func getTypedExample(mt *openapi3.MediaType, prefer map[string]string) (interfac
 
 // getExample tries to return an example for a given operation.
 // Using the Prefer http header, the consumer can specify the type of response they want.
-func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *openapi3.Operation) (int, string, map[string]*openapi3.HeaderRef, interface{}, error) {
+func getExample(rr *RefreshableRouter, negotiator *ContentNegotiator, prefer map[string]string, op *openapi3.Operation) (int, string, map[string]*openapi3.HeaderRef, interface{}, error) {
 	var responses []string
 	var blankHeaders = make(map[string]*openapi3.HeaderRef)
 
@@ -257,7 +273,7 @@ func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *ope
 				continue
 			}
 
-			example, err := getTypedExample(content, prefer)
+			example, err := getTypedExample(rr, content, prefer)
 			if err == nil {
 				return status, mt, response.Value.Headers, example, nil
 			}
@@ -532,7 +548,7 @@ var handler = func(rr *RefreshableRouter) http.Handler {
 
 		prefer := parsePreferHeader(req.Header.Get("Prefer"))
 
-		status, mediatype, headers, example, err := getExample(negotiator, prefer, route.Operation)
+		status, mediatype, headers, example, err := getExample(rr, negotiator, prefer, route.Operation)
 		if err != nil {
 			log.Printf("%s => Missing example", info)
 			w.WriteHeader(http.StatusTeapot)
@@ -604,6 +620,7 @@ func server(cmd *cobra.Command, args []string) {
 	rr := NewRefreshableRouter()
 
 	uri := args[0]
+	rr.uri = uri
 
 	var err error
 	var data []byte
