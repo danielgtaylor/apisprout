@@ -36,6 +36,9 @@ apisprout --add-server http://localhost:8080/mock --validate-server my-api.yaml
 
 # Load from a URL
 apisprout https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/examples/v3.0/api-with-examples.yaml
+
+# Load from S3 Bucket
+apisprout --watch --s3 s3://my-aws-bucket/config my-api.yaml
 ```
 
 ## Docker Image

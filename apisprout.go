@@ -147,6 +147,7 @@ func main() {
 	addParameter(flags, "https", "", false, "Use HTTPS instead of HTTP")
 	addParameter(flags, "public-key", "", "", "Public key for HTTPS, use with --https")
 	addParameter(flags, "private-key", "", "", "Private key for HTTPS, use with --https")
+	addParameter(flags, "s3", "", "", "Download config from s3 bucket")
 
 	// Run the app!
 	root.Execute()
@@ -639,6 +640,13 @@ func server(cmd *cobra.Command, args []string) {
 			log.Fatal("Watching a URL is not supported.")
 		}
 	} else {
+		if viper.GetString("s3") != "" {
+			err := loadConfigFromS3WithSession(viper.GetString("s3"))
+			if err != nil {
+				log.Fatalf("Error loading config from s3 %v", err)
+			}
+		}
+
 		data, err = ioutil.ReadFile(uri)
 		if err != nil {
 			log.Fatal(err)
@@ -724,6 +732,22 @@ func server(cmd *cobra.Command, args []string) {
 			w.WriteHeader(200)
 			w.Write([]byte("reloaded"))
 			log.Printf("Reloaded from %s", uri)
+		})
+	}
+
+	if viper.GetString("s3") != "" && viper.GetBool("watch") {
+		http.HandleFunc("/__reload", func(w http.ResponseWriter, r *http.Request) {
+			err := loadConfigFromS3WithSession(viper.GetString("s3"))
+
+			if err != nil {
+				log.Printf("Error loading config from s3 %v", err)
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte("error while reloading"))
+				return
+			}
+
+			w.WriteHeader(200)
+			w.Write([]byte("reloaded"))
 		})
 	}
 
