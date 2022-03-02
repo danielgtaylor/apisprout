@@ -58,10 +58,10 @@ docker run -p 8000:8000 -v $FULLPATH/localfile.yaml:/api.yaml danielgtaylor/apis
 
 Download the appropriate binary from the [releases](https://github.com/danielgtaylor/apisprout/releases) page.
 
-Alternatively, you can use `go get`:
+Alternatively, you can use `go install`:
 
 ```sh
-go get github.com/danielgtaylor/apisprout
+go install github.com/danielgtaylor/apisprout@latest
 ```
 
 ## Extra Features
