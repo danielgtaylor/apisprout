@@ -181,6 +181,7 @@ func getTypedExample(mt *openapi3.MediaType, prefer map[string]string) (interfac
 		if mapContainsKey(prefer, "example") {
 			preferredExample = prefer["example"]
 			if _, ok := mt.Examples[preferredExample]; ok {
+				log.Printf("prefer example: %v", preferredExample)
 				return mt.Examples[preferredExample].Value.Value, nil
 			}
 		}
@@ -225,6 +226,7 @@ func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *ope
 		}
 		responses = append(success, other...)
 	} else if op.Responses[prefer["status"]] != nil {
+		log.Printf("prefer status: %v", prefer["status"])
 		responses = []string{prefer["status"]}
 	} else if op.Responses["default"] != nil {
 		responses = []string{"default"}
