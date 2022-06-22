@@ -423,6 +423,18 @@ func mapContainsKey(dict map[string]string, key string) bool {
 
 var handler = func(rr *RefreshableRouter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+
+		customAwait := req.Header.Get("await")
+		if customAwait != "" {
+			dur, err := time.ParseDuration(customAwait)
+			if err != nil {
+				log.Printf("ERROR: passed incorrect duration %s in await header", customAwait)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			time.Sleep(dur)
+		}
+
 		if !viper.GetBool("disable-cors") {
 			corsOrigin := req.Header.Get("Origin")
 			if corsOrigin == "" {
