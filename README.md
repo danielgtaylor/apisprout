@@ -74,6 +74,10 @@ If your API spec is loaded from a remote URL, you can live-reload it by hitting 
 
 A simple endpoint which returns status code `200` is available at `/__health`. This endpoint successfully returns `200` even if `--validate-server` is turned on, and the endpoint is being accessed from a non-validated host.
 
+### Response delay
+
+To set the response delay time, add the header "await". A format value is a standard Goland duration in string representation (e.g. "300ms").
+
 ## Contributing
 
 Contributions are very welcome. Please open a tracking issue or pull request and we can work to get things merged in.
