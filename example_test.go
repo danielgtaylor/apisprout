@@ -1,4 +1,4 @@
-package main
+package apisprout
 
 import (
 	"encoding/json"
@@ -522,7 +522,7 @@ func TestGenExample(t *testing.T) {
 }
 
 func TestRecursiveSchema(t *testing.T) {
-	loader := openapi3.NewSwaggerLoader()
+	loader := openapi3.NewLoader()
 
 	tests := []struct {
 		name   string
@@ -557,7 +557,7 @@ func TestRecursiveSchema(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			swagger, err := loader.LoadSwaggerFromData([]byte(test.in))
+			swagger, err := loader.LoadFromData([]byte(test.in))
 			require.NoError(t, err)
 
 			ex, err := OpenAPIExample(ModeResponse, swagger.Components.Schemas[test.schema].Value)

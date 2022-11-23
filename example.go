@@ -1,4 +1,4 @@
-package main
+package apisprout
 
 import (
 	"fmt"
