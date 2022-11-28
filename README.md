@@ -61,7 +61,7 @@ Download the appropriate binary from the [releases](https://github.com/danielgta
 Alternatively, you can use `go get`:
 
 ```sh
-go get github.com/danielgtaylor/apisprout
+go get github.com/danielgtaylor/apisprout/cmd/apisprout
 ```
 
 ## Extra Features

@@ -1,8 +1,9 @@
-package main
+package apisprout
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,19 +12,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
+	"syscall"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/getkin/kin-openapi/routers"
+	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/gobwas/glob"
-	"github.com/pkg/errors"
+	"github.com/oklog/run"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -54,22 +55,6 @@ var (
 	marshalJSONMatcher = regexp.MustCompile(`^application/(vnd\..+\+)?json$`)
 	marshalYAMLMatcher = regexp.MustCompile(`^(application|text)/(x-|vnd\..+\+)?yaml$`)
 )
-
-type RefreshableRouter struct {
-	router *openapi3filter.Router
-}
-
-func (rr *RefreshableRouter) Set(router *openapi3filter.Router) {
-	rr.router = router
-}
-
-func (rr *RefreshableRouter) Get() *openapi3filter.Router {
-	return rr.router
-}
-
-func NewRefreshableRouter() *RefreshableRouter {
-	return &RefreshableRouter{}
-}
 
 // ContentNegotiator is used to match a media type during content negotiation
 // of HTTP requests.
@@ -107,64 +92,6 @@ func (cn *ContentNegotiator) Match(mediatype string) bool {
 	}
 
 	return false
-}
-
-func main() {
-	rand.Seed(time.Now().UnixNano())
-
-	// Load configuration from file(s) if provided.
-	viper.SetConfigName("config")
-	viper.AddConfigPath("/etc/apisprout/")
-	viper.AddConfigPath("$HOME/.apisprout/")
-	viper.ReadInConfig()
-
-	// Load configuration from the environment if provided. Flags below get
-	// transformed automatically, e.g. `foo-bar` -> `SPROUT_FOO_BAR`.
-	viper.SetEnvPrefix("SPROUT")
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
-
-	// Build the root command. This is the application's entry point.
-	cmd := filepath.Base(os.Args[0])
-	root := &cobra.Command{
-		Use:     fmt.Sprintf("%s [flags] FILE", cmd),
-		Version: GitSummary,
-		Args:    cobra.MinimumNArgs(1),
-		Run:     server,
-		Example: fmt.Sprintf("  # Basic usage\n  %s openapi.yaml\n\n  # Validate server name and use base path\n  %s --validate-server openapi.yaml\n\n  # Fetch API via HTTP with custom auth header\n  %s -H 'Authorization: abc123' http://example.com/openapi.yaml", cmd, cmd, cmd),
-	}
-
-	// Set up global options.
-	flags := root.PersistentFlags()
-
-	addParameter(flags, "port", "p", 8000, "HTTP port")
-	addParameter(flags, "validate-server", "s", false, "Check scheme/hostname/basepath against configured servers")
-	addParameter(flags, "validate-request", "", false, "Check request data structure")
-	addParameter(flags, "watch", "w", false, "Reload when input file changes")
-	addParameter(flags, "disable-cors", "", false, "Disable CORS headers")
-	addParameter(flags, "header", "H", "", "Add a custom header when fetching API")
-	addParameter(flags, "add-server", "", "", "Add a new valid server URL, use with --validate-server")
-	addParameter(flags, "https", "", false, "Use HTTPS instead of HTTP")
-	addParameter(flags, "public-key", "", "", "Public key for HTTPS, use with --https")
-	addParameter(flags, "private-key", "", "", "Private key for HTTPS, use with --https")
-
-	// Run the app!
-	root.Execute()
-}
-
-// addParameter adds a new global parameter with a default value that can be
-// configured using configuration files, the environment, or commandline flags.
-func addParameter(flags *pflag.FlagSet, name, short string, def interface{}, desc string) {
-	viper.SetDefault(name, def)
-	switch v := def.(type) {
-	case bool:
-		flags.BoolP(name, short, v, desc)
-	case int:
-		flags.IntP(name, short, v, desc)
-	case string:
-		flags.StringP(name, short, v, desc)
-	}
-	viper.BindPFlag(name, flags.Lookup(name))
 }
 
 // getTypedExample will return an example from a given media type, if such an
@@ -209,7 +136,7 @@ func getTypedExample(mt *openapi3.MediaType, prefer map[string]string) (interfac
 // Using the Prefer http header, the consumer can specify the type of response they want.
 func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *openapi3.Operation) (int, string, map[string]*openapi3.HeaderRef, interface{}, error) {
 	var responses []string
-	var blankHeaders = make(map[string]*openapi3.HeaderRef)
+	blankHeaders := make(map[string]*openapi3.HeaderRef)
 
 	if !mapContainsKey(prefer, "status") {
 		// First, make a list of responses ordered by successful (200-299 status code)
@@ -271,7 +198,7 @@ func getExample(negotiator *ContentNegotiator, prefer map[string]string, op *ope
 
 // addLocalServers will ensure that requests to localhost are always allowed
 // even if not specified in the OpenAPI document.
-func addLocalServers(swagger *openapi3.Swagger) error {
+func (cr *ConfigReloader) addLocalServers(swagger *openapi3.T) error {
 	seen := make(map[string]bool)
 	for _, s := range swagger.Servers {
 		seen[s.URL] = true
@@ -286,7 +213,7 @@ func addLocalServers(swagger *openapi3.Swagger) error {
 
 		if u.Hostname() != "localhost" {
 			u.Scheme = "http"
-			u.Host = fmt.Sprintf("localhost:%d", viper.GetInt("port"))
+			u.Host = fmt.Sprintf("localhost:%d", cr.Port)
 
 			ls := &openapi3.Server{
 				URL:         u.String(),
@@ -306,59 +233,6 @@ func addLocalServers(swagger *openapi3.Swagger) error {
 	}
 
 	return nil
-}
-
-// Load the OpenAPI document and create the router.
-func load(uri string, data []byte) (swagger *openapi3.Swagger, router *openapi3filter.Router, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			swagger = nil
-			router = nil
-			if e, ok := r.(error); ok {
-				err = errors.Wrap(e, "Caught panic while trying to load")
-			} else {
-				err = fmt.Errorf("Caught panic while trying to load")
-			}
-		}
-	}()
-
-	loader := openapi3.NewSwaggerLoader()
-	loader.IsExternalRefsAllowed = true
-
-	var u *url.URL
-	u, err = url.Parse(uri)
-	if err != nil {
-		return
-	}
-
-	swagger, err = loader.LoadSwaggerFromDataWithPath(data, u)
-	if err != nil {
-		return
-	}
-
-	if !viper.GetBool("validate-server") {
-		// Clear the server list so no validation happens. Note: this has a side
-		// effect of no longer parsing any server-declared parameters.
-		swagger.Servers = make([]*openapi3.Server, 0)
-	} else {
-		// Special-case localhost to always be allowed for local testing.
-		if err = addLocalServers(swagger); err != nil {
-			return
-		}
-
-		if cs := viper.GetString("add-server"); cs != "" {
-			swagger.Servers = append(swagger.Servers, &openapi3.Server{
-				URL:         cs,
-				Description: "Custom server from command line param",
-				Variables:   make(map[string]*openapi3.ServerVariable),
-			})
-		}
-	}
-
-	// Create a new router using the OpenAPI document's declared paths.
-	router = openapi3filter.NewRouter().WithSwagger(swagger)
-
-	return
 }
 
 // parsePreferHeader takes the value of a prefer header and splits it out into key value pairs
@@ -421,9 +295,9 @@ func mapContainsKey(dict map[string]string, key string) bool {
 	return false
 }
 
-var handler = func(rr *RefreshableRouter) http.Handler {
+func (s *OpenAPIServer) handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if !viper.GetBool("disable-cors") {
+		if !s.DisableCORS {
 			corsOrigin := req.Header.Get("Origin")
 			if corsOrigin == "" {
 				corsOrigin = "*"
@@ -471,20 +345,15 @@ var handler = func(rr *RefreshableRouter) http.Handler {
 			req.URL.Scheme = "https"
 		}
 
-		if viper.GetBool("validate-server") {
-			// Use the scheme/host in the log message since we are validating it.
-			info = fmt.Sprintf("%s %v", req.Method, req.URL)
-		}
-
-		route, pathParams, err := rr.Get().FindRoute(req.Method, req.URL)
+		route, pathParams, err := s.r.FindRoute(req)
 		if err != nil {
 			log.Printf("ERROR: %s => %v", info, err)
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 
-		if viper.GetBool("validate-request") {
-			err = openapi3filter.ValidateRequest(nil, &openapi3filter.RequestValidationInput{
+		if s.ValidateRequest {
+			err = openapi3filter.ValidateRequest(req.Context(), &openapi3filter.RequestValidationInput{
 				Request:    req,
 				Route:      route,
 				PathParams: pathParams,
@@ -517,7 +386,7 @@ var handler = func(rr *RefreshableRouter) http.Handler {
 			if err != nil {
 				log.Printf("ERROR: %s => %v", info, err)
 				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(fmt.Sprintf("%v", err)))
+				fmt.Fprintf(w, "%v", err)
 				return
 			}
 		}
@@ -536,7 +405,7 @@ var handler = func(rr *RefreshableRouter) http.Handler {
 		if err != nil {
 			log.Printf("%s => Missing example", info)
 			w.WriteHeader(http.StatusTeapot)
-			w.Write([]byte("No example available."))
+			fmt.Fprint(w, "No example available.")
 			return
 		}
 
@@ -559,13 +428,13 @@ var handler = func(rr *RefreshableRouter) http.Handler {
 			} else if marshalYAMLMatcher.MatchString(mediatype) {
 				encoded, err = yaml.Marshal(example)
 			} else {
-				log.Printf("Cannot marshal as '%s'!", mediatype)
 				err = ErrCannotMarshal
 			}
 
 			if err != nil {
+				log.Printf("Cannot marshal as '%s'!: %s", mediatype, err.Error())
 				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte("Unable to marshal response"))
+				fmt.Fprint(w, "Unable to marshal response")
 				return
 			}
 		}
@@ -597,184 +466,353 @@ var handler = func(rr *RefreshableRouter) http.Handler {
 	})
 }
 
+type ConfigReloader struct {
+	OpenAPIServer *OpenAPIServer
+	Mux           *http.ServeMux
+
+	URI             string
+	WithServer      string
+	Watch           bool
+	HTTPS           bool
+	DisableCORS     bool
+	ValidateServer  bool
+	ValidateRequest bool
+	Header          string
+	PublicKey       string
+	PrivateKey      string
+	Port            int
+}
+
+type Option func(c *config)
+
+func WithValidateRequest(s bool) Option {
+	return func(c *config) {
+		c.ValidateRequest = s
+	}
+}
+
+func WithDisableCORS(b bool) Option {
+	return func(c *config) {
+		c.DisableCORS = b
+	}
+}
+
+func NewOpenAPIServer(swagger *openapi3.T, options ...Option) (*OpenAPIServer, error) {
+	c := &config{}
+	for _, o := range options {
+		o(c)
+	}
+	r, err := gorillamux.NewRouter(swagger)
+	if err != nil {
+		return nil, err
+	}
+
+	s := &OpenAPIServer{
+		Swagger: swagger,
+		r:       r,
+		config:  *c,
+	}
+
+	return s, nil
+}
+
+type config struct {
+	DisableCORS     bool
+	ValidateRequest bool
+}
+
+type OpenAPIServer struct {
+	Swagger *openapi3.T
+	r       routers.Router
+	config
+}
+
+func (s *OpenAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.handler().ServeHTTP(w, r)
+}
+
+func ServeCMD(cmd *cobra.Command, args []string) error {
+	r := &ConfigReloader{
+		Mux:             http.NewServeMux(),
+		URI:             args[0],
+		Header:          viper.GetString("header"),
+		WithServer:      viper.GetString("add-server"),
+		Watch:           viper.GetBool("watch"),
+		Port:            viper.GetInt("port"),
+		HTTPS:           viper.GetBool("https"),
+		DisableCORS:     viper.GetBool("disable-cors"),
+		ValidateServer:  viper.GetBool("validate-server"),
+		ValidateRequest: viper.GetBool("validate-request"),
+		PublicKey:       viper.GetString("public-key"),
+		PrivateKey:      viper.GetString("private-key"),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	g := run.Group{}
+	g.Add(run.SignalHandler(ctx, os.Interrupt, syscall.SIGTERM))
+	g.Add(func() error {
+		return r.Serve(ctx)
+	}, func(err error) {
+		cancel()
+	})
+
+	sErr := new(run.SignalError)
+	if err := g.Run(); errors.As(err, sErr) {
+		log.Println(sErr.Signal)
+	} else {
+		return err
+	}
+	return nil
+}
+
+func (s *ConfigReloader) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.Mux.ServeHTTP(w, r)
+}
+
 // server loads an OpenAPI file and runs a mock server using the paths and
 // examples defined in the file.
-func server(cmd *cobra.Command, args []string) {
-	var swagger *openapi3.Swagger
-	rr := NewRefreshableRouter()
+func (s *ConfigReloader) Serve(ctx context.Context) error {
+	if err := s.Run(ctx); err != nil {
+		return err
+	}
 
-	uri := args[0]
+	format := "🌱 Sprouting %s on port %d"
+	if s.HTTPS {
+		format = "🌱 Securely sprouting %s on port %d"
+	}
+	fmt.Printf(format, s.OpenAPIServer.Swagger.Info.Title, s.Port)
 
-	var err error
-	var data []byte
-	dataType := strings.Trim(strings.ToLower(filepath.Ext(uri)), ".")
-
-	// Load either from an HTTP URL or from a local file depending on the passed
-	// in value.
-	if strings.HasPrefix(uri, "http") {
-		req, err := http.NewRequest("GET", uri, nil)
-		if err != nil {
-			log.Fatal(err)
+	if s.ValidateServer && len(s.OpenAPIServer.Swagger.Servers) != 0 {
+		fmt.Printf(" with valid servers:\n")
+		for _, s := range s.OpenAPIServer.Swagger.Servers {
+			fmt.Println("• " + s.URL)
 		}
-		if customHeader := viper.GetString("header"); customHeader != "" {
+	} else {
+		fmt.Printf("\n")
+	}
+	port := fmt.Sprintf(":%d", s.Port)
+	var err error
+	server := http.Server{Addr: port, Handler: s}
+	go func() {
+		<-ctx.Done()
+		server.Close()
+	}()
+
+	if s.HTTPS {
+		err = server.ListenAndServeTLS(s.PublicKey,
+			s.PrivateKey)
+	} else {
+		err = server.ListenAndServe()
+	}
+	return err
+}
+
+func (r *ConfigReloader) Reload(ctx context.Context) error {
+	swagger, err := r.Load(ctx)
+	if err != nil {
+		return err
+	}
+	if r.ValidateServer {
+		// Special-case localhost to always be allowed for local testing.
+		if err = r.addLocalServers(swagger); err != nil {
+			return err
+		}
+
+		if cs := r.WithServer; cs != "" {
+			swagger.Servers = append(swagger.Servers, &openapi3.Server{
+				URL:         cs,
+				Description: "Custom server from command line param",
+				Variables:   make(map[string]*openapi3.ServerVariable),
+			})
+		}
+	} else {
+		swagger.AddServer(&openapi3.Server{URL: "/", Description: "server to listen on all addresses"})
+	}
+
+	o, err := NewOpenAPIServer(
+		swagger,
+		WithDisableCORS(r.DisableCORS),
+		WithValidateRequest(r.ValidateRequest),
+	)
+	if err != nil {
+		return err
+	}
+
+	if r.OpenAPIServer == nil {
+		r.OpenAPIServer = o
+
+		return nil
+	}
+
+	*r.OpenAPIServer = *o
+
+	return nil
+}
+
+func (s *ConfigReloader) Load(ctx context.Context) (swagger *openapi3.T, err error) {
+	var data []byte
+	if strings.HasPrefix(s.URI, "http") {
+		if s.Watch {
+			return nil, errors.New("Watching a URL is not supported.")
+		}
+		req, err := http.NewRequest("GET", s.URI, nil)
+		if err != nil {
+			return nil, err
+		}
+		if customHeader := s.Header; customHeader != "" {
 			header := strings.Split(customHeader, ":")
 			if len(header) != 2 {
-				log.Fatal("Header format is invalid.")
+				return nil, err
 			}
 			req.Header.Add(strings.TrimSpace(header[0]), strings.TrimSpace(header[1]))
 		}
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 
 		data, err = ioutil.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			log.Fatal(err)
-		}
-
-		if viper.GetBool("watch") {
-			log.Fatal("Watching a URL is not supported.")
+			return nil, err
 		}
 	} else {
-		data, err = ioutil.ReadFile(uri)
+
+		data, err = ioutil.ReadFile(s.URI)
 		if err != nil {
-			log.Fatal(err)
-		}
-
-		if viper.GetBool("watch") {
-			// Set up a new filesystem watcher and reload the router every time
-			// the file has changed on disk.
-			watcher, err := fsnotify.NewWatcher()
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer watcher.Close()
-
-			go func() {
-				// Since waiting for events or errors is blocking, we do this in a
-				// goroutine. It loops forever here but will exit when the process
-				// is finished, e.g. when you `ctrl+c` to exit.
-				for {
-					select {
-					case event, ok := <-watcher.Events:
-						if !ok {
-							return
-						}
-						if event.Op&fsnotify.Write == fsnotify.Write {
-							fmt.Printf("🌙 Reloading %s\n", uri)
-							data, err = ioutil.ReadFile(uri)
-							if err != nil {
-								log.Fatal(err)
-							}
-
-							if s, r, err := load(uri, data); err == nil {
-								swagger = s
-								rr.Set(r)
-							} else {
-								log.Printf("ERROR: Unable to load OpenAPI document: %s", err)
-							}
-						}
-					case err, ok := <-watcher.Errors:
-						if !ok {
-							return
-						}
-						fmt.Println("error:", err)
-					}
-				}
-			}()
-
-			watcher.Add(uri)
+			return nil, err
 		}
 	}
 
-	swagger, router, err := load(uri, data)
+	loader := &openapi3.Loader{Context: ctx, IsExternalRefsAllowed: true}
+
+	var u *url.URL
+	u, err = url.Parse(s.URI)
 	if err != nil {
-		log.Fatal(err)
+		return nil, fmt.Errorf("failed parse URI: %w", err)
 	}
 
-	rr.Set(router)
+	swagger, err = loader.LoadFromDataWithPath(data, u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load openapi spec: %w", err)
+	}
 
-	if strings.HasPrefix(uri, "http") {
-		http.HandleFunc("/__reload", func(w http.ResponseWriter, r *http.Request) {
-			resp, err := http.Get(uri)
-			if err != nil {
+	return swagger, nil
+}
+
+// Run loads the swagger spec from the URI and adds some utility routes to the server mux
+func (s *ConfigReloader) Run(ctx context.Context) error {
+	// Load either from an HTTP URL or from a local file depending on the passed
+	// in value.
+	if err := s.Reload(ctx); err != nil {
+		return err
+	}
+
+	if s.Watch {
+		// Set up a new filesystem watcher and reload the router every time
+		// the file has changed on disk.
+		watcher, err := fsnotify.NewWatcher()
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			// Since waiting for events or errors is blocking, we do this in a
+			// goroutine. It loops forever here but will exit when the process
+			// is finished, e.g. when you `ctrl+c` to exit.
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					fmt.Println(event)
+					if !ok {
+						log.Fatal("watcher closed")
+					}
+					// Many IDEs (eg.: vim, neovim) rename and delete the file on changes.
+					// We will stop watching the events for the file name that we care for,
+					// but only watch the renamed path. In case the renamed file was deleted,
+					// it will also be deteled from the watched paths, causing us to watch nothing.
+					// In this implementation we would continue running the server for the renamed file
+					// until it is deleted.
+					// The hidden "feature" would be that renamed files would still be watched.
+					// We can't remove it from the watch list because we can't get the new name.
+					// At least not with this version of fsnotify.
+					if event.Op&fsnotify.Rename == fsnotify.Rename {
+						if err := watcher.Add(s.URI); err != nil {
+							log.Fatal(err)
+						}
+					}
+					if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Remove == fsnotify.Remove {
+						fmt.Printf("🌙 Reloading %s\n", s.URI)
+						if err := s.Reload(ctx); err != nil {
+							log.Printf("ERROR: Unable to load OpenAPI document: %s", err)
+						}
+					}
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						watcher.Close()
+						return
+					}
+					fmt.Println("error:", err)
+				case <-ctx.Done():
+					watcher.Close()
+					return
+				}
+			}
+		}()
+
+		if err := watcher.Add(s.URI); err != nil {
+			return err
+		}
+	}
+
+	if strings.HasPrefix(s.URI, "http") {
+		s.Mux.HandleFunc("/__reload", func(w http.ResponseWriter, r *http.Request) {
+			if err := s.Reload(ctx); err != nil {
 				log.Printf("ERROR: %v", err)
 				w.WriteHeader(http.StatusBadRequest)
 				w.Write([]byte("error while reloading"))
 				return
+
 			}
 
-			data, err = ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
-			if err != nil {
-				log.Printf("ERROR: %v", err)
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte("error while parsing"))
-				return
-			}
-
-			if s, r, err := load(uri, data); err == nil {
-				swagger = s
-				rr.Set(r)
-			}
-
-			w.WriteHeader(200)
+			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("reloaded"))
-			log.Printf("Reloaded from %s", uri)
+			log.Printf("Reloaded from %s", s.URI)
 		})
 	}
 
 	// Add a health check route which returns 200
-	http.HandleFunc("/__health", func(w http.ResponseWriter, r *http.Request) {
+	s.Mux.HandleFunc("/__health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		log.Printf("Health check")
 	})
 
 	// Another custom handler to return the exact swagger document given to us
-	http.HandleFunc("/__schema", func(w http.ResponseWriter, req *http.Request) {
-		if !viper.GetBool("disable-cors") {
-			corsOrigin := req.Header.Get("Origin")
-			if corsOrigin == "" {
-				corsOrigin = "*"
-			}
-			w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
-		}
-
-		w.Header().Set("Content-Type", fmt.Sprintf("application/%v; charset=utf-8", dataType))
+	s.Mux.HandleFunc("/__schema", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, string(data))
+		json.NewEncoder(w).Encode(s.OpenAPIServer.Swagger)
 	})
-
 	// Register our custom HTTP handler that will use the router to find
 	// the appropriate OpenAPI operation and try to return an example.
-	http.Handle("/", handler(rr))
-
-	format := "🌱 Sprouting %s on port %d"
-	if viper.GetBool("https") {
-		format = "🌱 Securely sprouting %s on port %d"
+	if s.DisableCORS {
+		s.Mux.Handle("/", disableCORS(s.OpenAPIServer))
+	} else {
+		s.Mux.Handle("/", s.OpenAPIServer)
 	}
-	fmt.Printf(format, swagger.Info.Title, viper.GetInt("port"))
+	return nil
+}
 
-	if viper.GetBool("validate-server") && len(swagger.Servers) != 0 {
-		fmt.Printf(" with valid servers:\n")
-		for _, s := range swagger.Servers {
-			fmt.Println("• " + s.URL)
+func disableCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		corsOrigin := r.Header.Get("Origin")
+		if corsOrigin == "" {
+			corsOrigin = "*"
 		}
-	} else {
-		fmt.Printf("\n")
-	}
-
-	port := fmt.Sprintf(":%d", viper.GetInt("port"))
-	if viper.GetBool("https") {
-		err = http.ListenAndServeTLS(port, viper.GetString("public-key"),
-			viper.GetString("private-key"), nil)
-	} else {
-		err = http.ListenAndServe(port, nil)
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
+		w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
+		next.ServeHTTP(w, r)
+	})
 }
